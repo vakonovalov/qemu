@@ -31,3 +31,7 @@ bool replay_events_enabled(void)
 {
     return false;
 }
+
+void replay_add_bh_event(void *bh, uint64_t id)
+{
+}

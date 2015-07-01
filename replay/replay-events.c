@@ -47,6 +47,9 @@ static void replay_run_event(Event *event)
     case REPLAY_ASYNC_EVENT_INPUT_SYNC:
         qemu_input_event_sync_impl();
         break;
+    case REPLAY_ASYNC_EVENT_BH:
+        aio_bh_call(event->opaque);
+        break;
     default:
         error_report("Replay: invalid async event ID (%d) in the queue",
                     event->event_kind);
@@ -166,8 +169,16 @@ static void replay_save_event(Event *event, int checkpoint)
         case REPLAY_ASYNC_EVENT_INPUT:
             replay_save_input_event(event->opaque);
             break;
+        case REPLAY_ASYNC_EVENT_BH:
+            replay_put_qword(event->id);
+            break;
         }
     }
+}
+
+void replay_add_bh_event(void *bh, uint64_t id)
+{
+    replay_add_event_internal(REPLAY_ASYNC_EVENT_BH, bh, NULL, id);
 }
 
 /* Called with replay mutex locked */
@@ -202,6 +213,7 @@ static Event *replay_read_event(int checkpoint)
     /* Events that has not to be in the queue */
     switch (read_event_kind) {
     case REPLAY_ASYNC_EVENT_PTIMER:
+    case REPLAY_ASYNC_EVENT_BH:
         if (read_id == -1) {
             read_id = replay_get_qword();
         }

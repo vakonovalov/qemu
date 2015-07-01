@@ -27,6 +27,7 @@
 #include "block/thread-pool.h"
 #include "qemu/main-loop.h"
 #include "qemu/atomic.h"
+#include "replay/replay.h"
 
 /***********************************************************/
 /* bottom halves (can be seen as timers which expire ASAP) */
@@ -39,6 +40,8 @@ struct QEMUBH {
     bool scheduled;
     bool idle;
     bool deleted;
+    bool replay;
+    uint64_t id;
 };
 
 QEMUBH *aio_bh_new(AioContext *ctx, QEMUBHFunc *cb, void *opaque)
@@ -56,8 +59,18 @@ QEMUBH *aio_bh_new(AioContext *ctx, QEMUBHFunc *cb, void *opaque)
     return bh;
 }
 
+QEMUBH *aio_bh_new_replay(AioContext *ctx, QEMUBHFunc *cb, void *opaque,
+                          uint64_t id)
+{
+    QEMUBH *bh = aio_bh_new(ctx, cb, opaque);
+    bh->replay = true;
+    bh->id = id;
+    return bh;
+}
+
 void aio_bh_call(QEMUBH *bh)
 {
+    QEMUBH *bh = (QEMUBH *)opaque;
     bh->cb(bh->opaque);
 }
 
@@ -83,7 +96,11 @@ int aio_bh_poll(AioContext *ctx)
             if (!bh->idle)
                 ret = 1;
             bh->idle = 0;
-            aio_bh_call(bh);
+            if (!bh->replay) {
+                aio_bh_call(bh);
+            } else {
+                replay_add_bh_event(bh, bh->id);
+            }
         }
     }
 

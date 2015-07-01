@@ -12,6 +12,7 @@
 #include "trace.h"
 #include "qemu/thread.h"
 #include "qemu/main-loop.h"
+#include "replay/replay.h"
 
 /* #define DEBUG_IOMMU */
 
@@ -90,6 +91,15 @@ static void reschedule_dma(void *opaque)
     qemu_bh_delete(dbs->bh);
     dbs->bh = NULL;
     dma_blk_cb(dbs, 0);
+}
+
+static void continue_after_map_failure(void *opaque)
+{
+    DMAAIOCB *dbs = (DMAAIOCB *)opaque;
+
+    dbs->bh = qemu_bh_new_replay(reschedule_dma, dbs,
+                                 replay_get_current_step());
+    qemu_bh_schedule(dbs->bh);
 }
 
 static void dma_blk_unmap(DMAAIOCB *dbs)

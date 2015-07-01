@@ -115,5 +115,7 @@ void replay_add_ptimer_event(void *bh, uint64_t id);
 void replay_input_event(QemuConsole *src, InputEvent *evt);
 /*! Adds input sync event to the queue */
 void replay_input_sync_event(void);
+/*! Adds BH event to the queue */
+void replay_add_bh_event(void *bh, uint64_t id);
 
 #endif
