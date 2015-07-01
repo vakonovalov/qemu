@@ -32,6 +32,7 @@
 #include "sysemu/dma.h"
 #include "hw/block/block.h"
 #include "sysemu/block-backend.h"
+#include "replay/replay.h"
 
 #include <hw/ide/internal.h>
 
@@ -448,7 +449,8 @@ BlockAIOCB *ide_issue_trim(BlockBackend *blk,
 
     iocb = blk_aio_get(&trim_aiocb_info, blk, cb, opaque);
     iocb->blk = blk;
-    iocb->bh = qemu_bh_new(ide_trim_bh_cb, iocb);
+    iocb->bh = qemu_bh_new_replay(ide_trim_bh_cb, iocb,
+                                  replay_get_current_step());
     iocb->ret = 0;
     iocb->qiov = qiov;
     iocb->i = -1;
