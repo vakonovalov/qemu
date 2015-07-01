@@ -35,3 +35,7 @@ bool replay_events_enabled(void)
 void replay_add_bh_event(void *bh, uint64_t id)
 {
 }
+
+void replay_add_thread_event(void *opaque, void *opaque2, uint64_t id)
+{
+}

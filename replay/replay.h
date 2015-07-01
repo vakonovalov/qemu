@@ -117,5 +117,7 @@ void replay_input_event(QemuConsole *src, InputEvent *evt);
 void replay_input_sync_event(void);
 /*! Adds BH event to the queue */
 void replay_add_bh_event(void *bh, uint64_t id);
+/*! Adds thread event to the queue */
+void replay_add_thread_event(void *pool, void *req, uint64_t id);
 
 #endif
