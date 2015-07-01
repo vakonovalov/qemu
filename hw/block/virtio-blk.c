@@ -357,11 +357,11 @@ static inline void submit_requests(BlockBackend *blk, MultiReqBuffer *mrb,
     }
 
     if (is_write) {
-        blk_aio_writev(blk, sector_num, qiov, nb_sectors,
-                       virtio_blk_rw_complete, mrb->reqs[start]);
+        blk_aio_writev_replay(blk, sector_num, qiov, nb_sectors,
+                              virtio_blk_rw_complete, mrb->reqs[start]);
     } else {
-        blk_aio_readv(blk, sector_num, qiov, nb_sectors,
-                      virtio_blk_rw_complete, mrb->reqs[start]);
+        blk_aio_readv_replay(blk, sector_num, qiov, nb_sectors,
+                             virtio_blk_rw_complete, mrb->reqs[start]);
     }
 }
 
@@ -453,7 +453,7 @@ static void virtio_blk_handle_flush(VirtIOBlockReq *req, MultiReqBuffer *mrb)
     if (mrb->is_write && mrb->num_reqs > 0) {
         virtio_blk_submit_multireq(req->dev->blk, mrb);
     }
-    blk_aio_flush(req->dev->blk, virtio_blk_flush_complete, req);
+    blk_aio_flush_replay(req->dev->blk, virtio_blk_flush_complete, req);
 }
 
 static bool virtio_blk_sect_range_ok(VirtIOBlock *dev,

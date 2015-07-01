@@ -319,11 +319,24 @@ typedef void BlockDriverDirtyHandler(BlockDriverState *bs, int64_t sector,
 BlockAIOCB *bdrv_aio_readv(BlockDriverState *bs, int64_t sector_num,
                            QEMUIOVector *iov, int nb_sectors,
                            BlockCompletionFunc *cb, void *opaque);
+BlockAIOCB *bdrv_aio_readv_replay(BlockDriverState *bs,
+                                  int64_t sector_num,
+                                  QEMUIOVector *iov, int nb_sectors,
+                                  BlockCompletionFunc *cb,
+                                  void *opaque);
 BlockAIOCB *bdrv_aio_writev(BlockDriverState *bs, int64_t sector_num,
                             QEMUIOVector *iov, int nb_sectors,
                             BlockCompletionFunc *cb, void *opaque);
+BlockAIOCB *bdrv_aio_writev_replay(BlockDriverState *bs,
+                                   int64_t sector_num,
+                                   QEMUIOVector *iov, int nb_sectors,
+                                   BlockCompletionFunc *cb,
+                                   void *opaque);
 BlockAIOCB *bdrv_aio_flush(BlockDriverState *bs,
                            BlockCompletionFunc *cb, void *opaque);
+BlockAIOCB *bdrv_aio_flush_replay(BlockDriverState *bs,
+                                  BlockCompletionFunc *cb,
+                                  void *opaque);
 BlockAIOCB *bdrv_aio_discard(BlockDriverState *bs,
                              int64_t sector_num, int nb_sectors,
                              BlockCompletionFunc *cb, void *opaque);
@@ -344,7 +357,7 @@ typedef struct BlockRequest {
 } BlockRequest;
 
 int bdrv_aio_multiwrite(BlockDriverState *bs, BlockRequest *reqs,
-    int num_reqs);
+                        int num_reqs, bool replay);
 
 /* sg packet commands */
 int bdrv_ioctl(BlockDriverState *bs, unsigned long int req, void *buf);

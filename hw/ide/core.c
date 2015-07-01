@@ -630,11 +630,13 @@ static void ide_sector_read(IDEState *s)
     s->iov.iov_base = s->io_buffer;
     s->iov.iov_len  = n * BDRV_SECTOR_SIZE;
     qemu_iovec_init_external(&s->qiov, &s->iov, 1);
+    s->qiov.replay = true;
+    s->qiov.replay_step = replay_get_current_step();
 
     block_acct_start(blk_get_stats(s->blk), &s->acct,
                      n * BDRV_SECTOR_SIZE, BLOCK_ACCT_READ);
-    s->pio_aiocb = blk_aio_readv(s->blk, sector_num, &s->qiov, n,
-                                 ide_sector_read_cb, s);
+    s->pio_aiocb = blk_aio_readv_replay(s->blk, sector_num, &s->qiov, n,
+                                        ide_sector_read_cb, s);
 }
 
 static void dma_buf_commit(IDEState *s, uint32_t tx_bytes)
@@ -896,11 +898,13 @@ static void ide_sector_write(IDEState *s)
     s->iov.iov_base = s->io_buffer;
     s->iov.iov_len  = n * BDRV_SECTOR_SIZE;
     qemu_iovec_init_external(&s->qiov, &s->iov, 1);
+    s->qiov.replay = true;
+    s->qiov.replay_step = replay_get_current_step();
 
     block_acct_start(blk_get_stats(s->blk), &s->acct,
                      n * BDRV_SECTOR_SIZE, BLOCK_ACCT_READ);
-    s->pio_aiocb = blk_aio_writev(s->blk, sector_num, &s->qiov, n,
-                                  ide_sector_write_cb, s);
+    s->pio_aiocb = blk_aio_writev_replay(s->blk, sector_num, &s->qiov, n,
+                                         ide_sector_write_cb, s);
 }
 
 static void ide_flush_cb(void *opaque, int ret)
@@ -936,7 +940,7 @@ static void ide_flush_cache(IDEState *s)
 
     s->status |= BUSY_STAT;
     block_acct_start(blk_get_stats(s->blk), &s->acct, 0, BLOCK_ACCT_FLUSH);
-    s->pio_aiocb = blk_aio_flush(s->blk, ide_flush_cb, s);
+    s->pio_aiocb = blk_aio_flush_replay(s->blk, ide_flush_cb, s);
 }
 
 static void ide_cfata_metadata_inquiry(IDEState *s)

@@ -163,8 +163,8 @@ static void dma_blk_cb(void *opaque, int ret)
 
     if (dbs->iov.size == 0) {
         trace_dma_map_wait(dbs);
-        dbs->bh = aio_bh_new(blk_get_aio_context(dbs->blk),
-                             reschedule_dma, dbs);
+        dbs->bh = aio_bh_new_replay(blk_get_aio_context(dbs->blk),
+                             reschedule_dma, dbs, replay_get_current_step());
         cpu_register_map_client(dbs->bh);
         return;
     }
@@ -219,6 +219,8 @@ BlockAIOCB *dma_blk_io(
     dbs->io_func = io_func;
     dbs->bh = NULL;
     qemu_iovec_init(&dbs->iov, sg->nsg);
+    dbs->iov.replay = true;
+    dbs->iov.replay_step = replay_get_current_step();
     dma_blk_cb(dbs, 0);
     return &dbs->common;
 }
@@ -228,7 +230,7 @@ BlockAIOCB *dma_blk_read(BlockBackend *blk,
                          QEMUSGList *sg, uint64_t sector,
                          void (*cb)(void *opaque, int ret), void *opaque)
 {
-    return dma_blk_io(blk, sg, sector, blk_aio_readv, cb, opaque,
+    return dma_blk_io(blk, sg, sector, blk_aio_readv_replay, cb, opaque,
                       DMA_DIRECTION_FROM_DEVICE);
 }
 
@@ -236,7 +238,7 @@ BlockAIOCB *dma_blk_write(BlockBackend *blk,
                           QEMUSGList *sg, uint64_t sector,
                           void (*cb)(void *opaque, int ret), void *opaque)
 {
-    return dma_blk_io(blk, sg, sector, blk_aio_writev, cb, opaque,
+    return dma_blk_io(blk, sg, sector, blk_aio_writev_replay, cb, opaque,
                       DMA_DIRECTION_TO_DEVICE);
 }
 

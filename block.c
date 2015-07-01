@@ -39,6 +39,7 @@
 #include "qemu/timer.h"
 #include "qapi-event.h"
 #include "block/throttle-groups.h"
+#include "replay/replay.h"
 
 #ifdef CONFIG_BSD
 #include <sys/types.h>

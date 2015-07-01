@@ -610,6 +610,14 @@ BlockAIOCB *blk_aio_readv(BlockBackend *blk, int64_t sector_num,
     return bdrv_aio_readv(blk->bs, sector_num, iov, nb_sectors, cb, opaque);
 }
 
+BlockAIOCB *blk_aio_readv_replay(BlockBackend *blk, int64_t sector_num,
+                                 QEMUIOVector *iov, int nb_sectors,
+                                 BlockCompletionFunc *cb, void *opaque)
+{
+    return bdrv_aio_readv_replay(blk->bs, sector_num, iov, nb_sectors,
+                                 cb, opaque);
+}
+
 BlockAIOCB *blk_aio_writev(BlockBackend *blk, int64_t sector_num,
                            QEMUIOVector *iov, int nb_sectors,
                            BlockCompletionFunc *cb, void *opaque)
@@ -622,10 +630,24 @@ BlockAIOCB *blk_aio_writev(BlockBackend *blk, int64_t sector_num,
     return bdrv_aio_writev(blk->bs, sector_num, iov, nb_sectors, cb, opaque);
 }
 
+BlockAIOCB *blk_aio_writev_replay(BlockBackend *blk, int64_t sector_num,
+                                  QEMUIOVector *iov, int nb_sectors,
+                                  BlockCompletionFunc *cb, void *opaque)
+{
+    return bdrv_aio_writev_replay(blk->bs, sector_num, iov, nb_sectors,
+                                  cb, opaque);
+}
+
 BlockAIOCB *blk_aio_flush(BlockBackend *blk,
                           BlockCompletionFunc *cb, void *opaque)
 {
     return bdrv_aio_flush(blk->bs, cb, opaque);
+}
+
+BlockAIOCB *blk_aio_flush_replay(BlockBackend *blk,
+                                 BlockCompletionFunc *cb, void *opaque)
+{
+    return bdrv_aio_flush_replay(blk->bs, cb, opaque);
 }
 
 BlockAIOCB *blk_aio_discard(BlockBackend *blk,
@@ -661,7 +683,22 @@ int blk_aio_multiwrite(BlockBackend *blk, BlockRequest *reqs, int num_reqs)
         }
     }
 
-    return bdrv_aio_multiwrite(blk->bs, reqs, num_reqs);
+    return bdrv_aio_multiwrite(blk->bs, reqs, num_reqs, false);
+}
+
+int blk_aio_multiwrite_replay(BlockBackend *blk, BlockRequest *reqs,
+                              int num_reqs)
+{
+    int i, ret;
+
+    for (i = 0; i < num_reqs; i++) {
+        ret = blk_check_request(blk, reqs[i].sector, reqs[i].nb_sectors);
+        if (ret < 0) {
+            return ret;
+        }
+    }
+
+    return bdrv_aio_multiwrite(blk->bs, reqs, num_reqs, true);
 }
 
 int blk_ioctl(BlockBackend *blk, unsigned long int req, void *buf)

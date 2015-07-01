@@ -25,7 +25,7 @@
 
 #include "hw/ide/internal.h"
 #include "hw/scsi/scsi.h"
-#include "sysemu/block-backend.h"
+#include "replay/replay.h"
 
 static void ide_atapi_cmd_read_dma_cb(void *opaque, int ret);
 
@@ -350,10 +350,12 @@ static void ide_atapi_cmd_read_dma_cb(void *opaque, int ret)
     s->bus->dma->iov.iov_base = (void *)(s->io_buffer + data_offset);
     s->bus->dma->iov.iov_len = n * 4 * 512;
     qemu_iovec_init_external(&s->bus->dma->qiov, &s->bus->dma->iov, 1);
+    s->bus->dma->qiov.replay = true;
+    s->bus->dma->qiov.replay_step = replay_get_current_step();
 
-    s->bus->dma->aiocb = blk_aio_readv(s->blk, (int64_t)s->lba << 2,
-                                       &s->bus->dma->qiov, n * 4,
-                                       ide_atapi_cmd_read_dma_cb, s);
+    s->bus->dma->aiocb = blk_aio_readv_replay(s->blk, (int64_t)s->lba << 2,
+                                              &s->bus->dma->qiov, n * 4,
+                                              ide_atapi_cmd_read_dma_cb, s);
     return;
 
 eot:

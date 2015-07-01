@@ -70,7 +70,6 @@ QEMUBH *aio_bh_new_replay(AioContext *ctx, QEMUBHFunc *cb, void *opaque,
 
 void aio_bh_call(QEMUBH *bh)
 {
-    QEMUBH *bh = (QEMUBH *)opaque;
     bh->cb(bh->opaque);
 }
 

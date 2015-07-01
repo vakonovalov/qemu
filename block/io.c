@@ -27,6 +27,7 @@
 #include "block/block_int.h"
 #include "block/throttle-groups.h"
 #include "qemu/error-report.h"
+#include "replay/replay.h"
 
 #define NOT_DONE 0x7fffffff /* used while emulated sync operation in progress */
 
@@ -55,7 +56,8 @@ static BlockAIOCB *bdrv_co_aio_rw_vector(BlockDriverState *bs,
                                          BdrvRequestFlags flags,
                                          BlockCompletionFunc *cb,
                                          void *opaque,
-                                         bool is_write);
+                                         bool is_write,
+                                         bool aio_replay);
 static void coroutine_fn bdrv_co_do_rw(void *opaque);
 static int coroutine_fn bdrv_co_do_write_zeroes(BlockDriverState *bs,
     int64_t sector_num, int nb_sectors, BdrvRequestFlags flags);
@@ -1708,7 +1710,19 @@ BlockAIOCB *bdrv_aio_readv(BlockDriverState *bs, int64_t sector_num,
     trace_bdrv_aio_readv(bs, sector_num, nb_sectors, opaque);
 
     return bdrv_co_aio_rw_vector(bs, sector_num, qiov, nb_sectors, 0,
-                                 cb, opaque, false);
+                                 cb, opaque, false, false);
+}
+
+BlockAIOCB *bdrv_aio_readv_replay(BlockDriverState *bs,
+                                  int64_t sector_num,
+                                  QEMUIOVector *qiov, int nb_sectors,
+                                  BlockCompletionFunc *cb,
+                                  void *opaque)
+{
+    trace_bdrv_aio_readv_replay(bs, sector_num, nb_sectors, opaque);
+
+    return bdrv_co_aio_rw_vector(bs, sector_num, qiov, nb_sectors, 0,
+                                 cb, opaque, false, true);
 }
 
 BlockAIOCB *bdrv_aio_writev(BlockDriverState *bs, int64_t sector_num,
@@ -1718,7 +1732,19 @@ BlockAIOCB *bdrv_aio_writev(BlockDriverState *bs, int64_t sector_num,
     trace_bdrv_aio_writev(bs, sector_num, nb_sectors, opaque);
 
     return bdrv_co_aio_rw_vector(bs, sector_num, qiov, nb_sectors, 0,
-                                 cb, opaque, true);
+                                 cb, opaque, true, false);
+}
+
+BlockAIOCB *bdrv_aio_writev_replay(BlockDriverState *bs,
+                                   int64_t sector_num,
+                                   QEMUIOVector *qiov, int nb_sectors,
+                                   BlockCompletionFunc *cb,
+                                   void *opaque)
+{
+    trace_bdrv_aio_writev_replay(bs, sector_num, nb_sectors, opaque);
+
+    return bdrv_co_aio_rw_vector(bs, sector_num, qiov, nb_sectors, 0,
+                                 cb, opaque, true, true);
 }
 
 BlockAIOCB *bdrv_aio_write_zeroes(BlockDriverState *bs,
@@ -1729,7 +1755,7 @@ BlockAIOCB *bdrv_aio_write_zeroes(BlockDriverState *bs,
 
     return bdrv_co_aio_rw_vector(bs, sector_num, NULL, nb_sectors,
                                  BDRV_REQ_ZERO_WRITE | flags,
-                                 cb, opaque, true);
+                                 cb, opaque, true, true);
 }
 
 
@@ -1878,7 +1904,8 @@ static int multiwrite_merge(BlockDriverState *bs, BlockRequest *reqs,
  * requests. However, the fields opaque and error are left unmodified as they
  * are used to signal failure for a single request to the caller.
  */
-int bdrv_aio_multiwrite(BlockDriverState *bs, BlockRequest *reqs, int num_reqs)
+int bdrv_aio_multiwrite(BlockDriverState *bs, BlockRequest *reqs, int num_reqs,
+                        bool replay)
 {
     MultiwriteCB *mcb;
     int i;
@@ -1916,7 +1943,7 @@ int bdrv_aio_multiwrite(BlockDriverState *bs, BlockRequest *reqs, int num_reqs)
         bdrv_co_aio_rw_vector(bs, reqs[i].sector, reqs[i].qiov,
                               reqs[i].nb_sectors, reqs[i].flags,
                               multiwrite_cb, mcb,
-                              true);
+                              true, replay);
     }
 
     return 0;
@@ -2052,17 +2079,33 @@ static void bdrv_co_em_bh(void *opaque)
 
     assert(!acb->need_bh);
     qemu_bh_delete(acb->bh);
+    acb->bh = NULL;
     bdrv_co_complete(acb);
 }
 
 static void bdrv_co_maybe_schedule_bh(BlockAIOCBCoroutine *acb)
 {
     acb->need_bh = false;
-    if (acb->req.error != -EINPROGRESS) {
+    if (acb->req.error != -EINPROGRESS && !acb->bh) {
         BlockDriverState *bs = acb->common.bs;
 
-        acb->bh = aio_bh_new(bdrv_get_aio_context(bs), bdrv_co_em_bh, acb);
+        if (acb->common.replay) {
+            acb->bh = aio_bh_new_replay(bdrv_get_aio_context(bs), bdrv_co_em_bh, acb,
+                                        acb->common.replay_step);
+        } else {
+            acb->bh = aio_bh_new(bdrv_get_aio_context(bs), bdrv_co_em_bh, acb);
+        }
         qemu_bh_schedule(acb->bh);
+    }
+}
+
+static void bdrv_complete_replay(BlockAIOCBCoroutine *acb)
+{
+    /* Coroutines are executed asynchronously. Use BH in record/replay mode */
+    if (acb->common.replay) {
+        bdrv_co_maybe_schedule_bh(acb);
+    } else {
+        bdrv_co_complete(acb);
     }
 }
 
@@ -2080,7 +2123,7 @@ static void coroutine_fn bdrv_co_do_rw(void *opaque)
             acb->req.nb_sectors, acb->req.qiov, acb->req.flags);
     }
 
-    bdrv_co_complete(acb);
+    bdrv_complete_replay(acb);
 }
 
 static BlockAIOCB *bdrv_co_aio_rw_vector(BlockDriverState *bs,
@@ -2090,7 +2133,8 @@ static BlockAIOCB *bdrv_co_aio_rw_vector(BlockDriverState *bs,
                                          BdrvRequestFlags flags,
                                          BlockCompletionFunc *cb,
                                          void *opaque,
-                                         bool is_write)
+                                         bool is_write,
+                                         bool aio_replay)
 {
     Coroutine *co;
     BlockAIOCBCoroutine *acb;
@@ -2103,7 +2147,10 @@ static BlockAIOCB *bdrv_co_aio_rw_vector(BlockDriverState *bs,
     acb->req.qiov = qiov;
     acb->req.flags = flags;
     acb->is_write = is_write;
-
+    acb->common.replay = aio_replay;
+    if (aio_replay) {
+        acb->common.replay_step = replay_get_current_step();
+    }
     co = qemu_coroutine_create(bdrv_co_do_rw);
     qemu_coroutine_enter(co, acb);
 
@@ -2117,7 +2164,7 @@ static void coroutine_fn bdrv_aio_flush_co_entry(void *opaque)
     BlockDriverState *bs = acb->common.bs;
 
     acb->req.error = bdrv_co_flush(bs);
-    bdrv_co_complete(acb);
+    bdrv_complete_replay(acb);
 }
 
 BlockAIOCB *bdrv_aio_flush(BlockDriverState *bs,
@@ -2139,13 +2186,35 @@ BlockAIOCB *bdrv_aio_flush(BlockDriverState *bs,
     return &acb->common;
 }
 
+BlockAIOCB *bdrv_aio_flush_replay(BlockDriverState *bs,
+        BlockCompletionFunc *cb, void *opaque)
+{
+    trace_bdrv_aio_flush(bs, opaque);
+
+    Coroutine *co;
+    BlockAIOCBCoroutine *acb;
+
+    acb = qemu_aio_get(&bdrv_em_co_aiocb_info, bs, cb, opaque);
+    acb->need_bh = true;
+    acb->req.error = -EINPROGRESS;
+    acb->common.replay = true;
+    acb->common.replay_step = replay_get_current_step();
+
+    co = qemu_coroutine_create(bdrv_aio_flush_co_entry);
+    qemu_coroutine_enter(co, acb);
+
+    bdrv_co_maybe_schedule_bh(acb);
+    return &acb->common;
+}
+
+
 static void coroutine_fn bdrv_aio_discard_co_entry(void *opaque)
 {
     BlockAIOCBCoroutine *acb = opaque;
     BlockDriverState *bs = acb->common.bs;
 
     acb->req.error = bdrv_co_discard(bs, acb->req.sector, acb->req.nb_sectors);
-    bdrv_co_complete(acb);
+    bdrv_complete_replay(acb);
 }
 
 BlockAIOCB *bdrv_aio_discard(BlockDriverState *bs,
@@ -2180,6 +2249,8 @@ void *qemu_aio_get(const AIOCBInfo *aiocb_info, BlockDriverState *bs,
     acb->cb = cb;
     acb->opaque = opaque;
     acb->refcnt = 1;
+    acb->replay_step = 0;
+    acb->replay = false;
     return acb;
 }
 
