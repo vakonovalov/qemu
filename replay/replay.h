@@ -96,5 +96,7 @@ bool replay_checkpoint(ReplayCheckpoint checkpoint);
 void replay_disable_events(void);
 /*! Returns true when saving events is enabled */
 bool replay_events_enabled(void);
+/*! Adds ptimer event to the queue */
+void replay_add_ptimer_event(void *bh, uint64_t id);
 
 #endif

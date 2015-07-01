@@ -13,6 +13,7 @@
 #include "qemu/error-report.h"
 #include "replay.h"
 #include "replay-internal.h"
+#include "block/aio.h"
 
 typedef struct Event {
     ReplayAsyncEventKind event_kind;
@@ -35,6 +36,9 @@ static bool events_enabled = false;
 static void replay_run_event(Event *event)
 {
     switch (event->event_kind) {
+    case REPLAY_ASYNC_EVENT_PTIMER:
+        aio_bh_call(event->opaque);
+        break;
     default:
         error_report("Replay: invalid async event ID (%d) in the queue",
                     event->event_kind);
@@ -123,6 +127,11 @@ void replay_add_event(ReplayAsyncEventKind event_kind, void *opaque)
     replay_add_event_internal(event_kind, opaque, NULL, 0);
 }
 
+void replay_add_ptimer_event(void *bh, uint64_t id)
+{
+    replay_add_event_internal(REPLAY_ASYNC_EVENT_PTIMER, bh, NULL, id);
+}
+
 static void replay_save_event(Event *event, int checkpoint)
 {
     if (replay_mode != REPLAY_MODE_PLAY) {
@@ -133,6 +142,9 @@ static void replay_save_event(Event *event, int checkpoint)
 
         /* save event-specific data */
         switch (event->event_kind) {
+        case REPLAY_ASYNC_EVENT_PTIMER:
+            replay_put_qword(event->id);
+            break;
         }
     }
 }
@@ -168,6 +180,11 @@ static Event *replay_read_event(int checkpoint)
 
     /* Events that has not to be in the queue */
     switch (read_event_kind) {
+    case REPLAY_ASYNC_EVENT_PTIMER:
+        if (read_id == -1) {
+            read_id = replay_get_qword();
+        }
+        break;
     default:
         error_report("Unknown ID %d of replay event", read_event_kind);
         exit(1);
