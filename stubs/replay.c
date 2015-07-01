@@ -21,3 +21,13 @@ int runstate_is_running(void)
 {
     return 0;
 }
+
+uint64_t replay_get_current_step(void)
+{
+    return 0;
+}
+
+bool replay_events_enabled(void)
+{
+    return false;
+}

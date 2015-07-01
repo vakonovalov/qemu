@@ -4600,6 +4600,8 @@ int main(int argc, char **argv, char **envp)
     /* Done notifiers can load ROMs */
     rom_load_done();
 
+    replay_start();
+
     /* This checkpoint is required by replay to separate prior clock
        reading from the other reads, because timer polling functions query
        clock values from the log. */
@@ -4640,6 +4642,8 @@ int main(int argc, char **argv, char **envp)
     }
 
     main_loop();
+    replay_disable_events();
+
     bdrv_close_all();
     pause_all_vcpus();
     res_free();
