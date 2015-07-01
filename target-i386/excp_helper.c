@@ -23,10 +23,10 @@
 #include "exec/helper-proto.h"
 
 #if 0
-#define raise_exception_err(env, a, b)                                  \
+#define raise_exception_err(env, a, b, c)                               \
     do {                                                                \
         qemu_log("raise_exception line=%d\n", __LINE__);                \
-        (raise_exception_err)(env, a, b);                               \
+        (raise_exception_err)(env, a, b, c);                            \
     } while (0)
 #endif
 
@@ -37,7 +37,7 @@ void helper_raise_interrupt(CPUX86State *env, int intno, int next_eip_addend)
 
 void helper_raise_exception(CPUX86State *env, int exception_index)
 {
-    raise_exception(env, exception_index);
+    raise_exception(env, exception_index, 0);
 }
 
 /*
@@ -92,7 +92,8 @@ static int check_exception(CPUX86State *env, int intno, int *error_code)
  */
 static void QEMU_NORETURN raise_interrupt2(CPUX86State *env, int intno,
                                            int is_int, int error_code,
-                                           int next_eip_addend)
+                                           int next_eip_addend,
+                                           uintptr_t retaddr)
 {
     CPUState *cs = CPU(x86_env_get_cpu(env));
 
@@ -108,7 +109,7 @@ static void QEMU_NORETURN raise_interrupt2(CPUX86State *env, int intno,
     env->error_code = error_code;
     env->exception_is_int = is_int;
     env->exception_next_eip = env->eip + next_eip_addend;
-    cpu_loop_exit(cs);
+    cpu_loop_exit_restore(cs, retaddr);
 }
 
 /* shortcuts to generate exceptions */
@@ -116,16 +117,16 @@ static void QEMU_NORETURN raise_interrupt2(CPUX86State *env, int intno,
 void QEMU_NORETURN raise_interrupt(CPUX86State *env, int intno, int is_int,
                                    int error_code, int next_eip_addend)
 {
-    raise_interrupt2(env, intno, is_int, error_code, next_eip_addend);
+    raise_interrupt2(env, intno, is_int, error_code, next_eip_addend, 0);
 }
 
 void raise_exception_err(CPUX86State *env, int exception_index,
-                         int error_code)
+                         int error_code, uintptr_t retaddr)
 {
-    raise_interrupt2(env, exception_index, 0, error_code, 0);
+    raise_interrupt2(env, exception_index, 0, error_code, 0, retaddr);
 }
 
-void raise_exception(CPUX86State *env, int exception_index)
+void raise_exception(CPUX86State *env, int exception_index, uintptr_t retaddr)
 {
-    raise_interrupt2(env, exception_index, 0, 0, 0);
+    raise_interrupt2(env, exception_index, 0, 0, 0, retaddr);
 }

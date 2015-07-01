@@ -354,7 +354,7 @@ void helper_vmrun(CPUX86State *env, int aflag, int next_eip_addend)
 void helper_vmmcall(CPUX86State *env)
 {
     cpu_svm_check_intercept_param(env, SVM_EXIT_VMMCALL, 0);
-    raise_exception(env, EXCP06_ILLOP);
+    raise_exception(env, EXCP06_ILLOP, GETPC());
 }
 
 void helper_vmload(CPUX86State *env, int aflag)
@@ -457,7 +457,7 @@ void helper_skinit(CPUX86State *env)
 {
     cpu_svm_check_intercept_param(env, SVM_EXIT_SKINIT, 0);
     /* XXX: not implemented */
-    raise_exception(env, EXCP06_ILLOP);
+    raise_exception(env, EXCP06_ILLOP, GETPC());
 }
 
 void helper_invlpga(CPUX86State *env, int aflag)

@@ -1015,7 +1015,7 @@ void breakpoint_handler(CPUState *cs)
         if (cs->watchpoint_hit->flags & BP_CPU) {
             cs->watchpoint_hit = NULL;
             if (check_hw_breakpoints(env, false)) {
-                raise_exception(env, EXCP01_DB);
+                raise_exception(env, EXCP01_DB, 0);
             } else {
                 cpu_resume_from_signal(cs, NULL);
             }
@@ -1025,7 +1025,7 @@ void breakpoint_handler(CPUState *cs)
             if (bp->pc == env->eip) {
                 if (bp->flags & BP_CPU) {
                     check_hw_breakpoints(env, true);
-                    raise_exception(env, EXCP01_DB);
+                    raise_exception(env, EXCP01_DB, 0);
                 }
                 break;
             }

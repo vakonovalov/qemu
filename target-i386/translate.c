@@ -2303,7 +2303,6 @@ static void gen_movl_seg_T0(DisasContext *s, int seg_reg, target_ulong cur_eip)
     if (s->pe && !s->vm86) {
         /* XXX: optimize by finding processor state dynamically */
         gen_update_cc_op(s);
-        gen_jmp_im(cur_eip);
         tcg_gen_trunc_tl_i32(cpu_tmp2_i32, cpu_T[0]);
         gen_helper_load_seg(cpu_env, tcg_const_i32(seg_reg), cpu_tmp2_i32);
         /* abort translation because the addseg value may change or
@@ -4842,21 +4841,17 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
         case 6: /* div */
             switch(ot) {
             case MO_8:
-                gen_jmp_im(pc_start - s->cs_base);
                 gen_helper_divb_AL(cpu_env, cpu_T[0]);
                 break;
             case MO_16:
-                gen_jmp_im(pc_start - s->cs_base);
                 gen_helper_divw_AX(cpu_env, cpu_T[0]);
                 break;
             default:
             case MO_32:
-                gen_jmp_im(pc_start - s->cs_base);
                 gen_helper_divl_EAX(cpu_env, cpu_T[0]);
                 break;
 #ifdef TARGET_X86_64
             case MO_64:
-                gen_jmp_im(pc_start - s->cs_base);
                 gen_helper_divq_EAX(cpu_env, cpu_T[0]);
                 break;
 #endif
@@ -4865,21 +4860,17 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
         case 7: /* idiv */
             switch(ot) {
             case MO_8:
-                gen_jmp_im(pc_start - s->cs_base);
                 gen_helper_idivb_AL(cpu_env, cpu_T[0]);
                 break;
             case MO_16:
-                gen_jmp_im(pc_start - s->cs_base);
                 gen_helper_idivw_AX(cpu_env, cpu_T[0]);
                 break;
             default:
             case MO_32:
-                gen_jmp_im(pc_start - s->cs_base);
                 gen_helper_idivl_EAX(cpu_env, cpu_T[0]);
                 break;
 #ifdef TARGET_X86_64
             case MO_64:
-                gen_jmp_im(pc_start - s->cs_base);
                 gen_helper_idivq_EAX(cpu_env, cpu_T[0]);
                 break;
 #endif
@@ -5212,7 +5203,6 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
         if (dflag == MO_64) {
             if (!(s->cpuid_ext_features & CPUID_EXT_CX16))
                 goto illegal_op;
-            gen_jmp_im(pc_start - s->cs_base);
             gen_update_cc_op(s);
             gen_lea_modrm(env, s, modrm);
             gen_helper_cmpxchg16b(cpu_env, cpu_A0);
@@ -5221,7 +5211,6 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
         {
             if (!(s->cpuid_features & CPUID_CX8))
                 goto illegal_op;
-            gen_jmp_im(pc_start - s->cs_base);
             gen_update_cc_op(s);
             gen_lea_modrm(env, s, modrm);
             gen_helper_cmpxchg8b(cpu_env, cpu_A0);
@@ -5838,7 +5827,6 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
                 break;
             case 0x0c: /* fldenv mem */
                 gen_update_cc_op(s);
-                gen_jmp_im(pc_start - s->cs_base);
                 gen_helper_fldenv(cpu_env, cpu_A0, tcg_const_i32(dflag - 1));
                 break;
             case 0x0d: /* fldcw mem */
@@ -5848,7 +5836,6 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
                 break;
             case 0x0e: /* fnstenv mem */
                 gen_update_cc_op(s);
-                gen_jmp_im(pc_start - s->cs_base);
                 gen_helper_fstenv(cpu_env, cpu_A0, tcg_const_i32(dflag - 1));
                 break;
             case 0x0f: /* fnstcw mem */
@@ -5858,23 +5845,19 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
                 break;
             case 0x1d: /* fldt mem */
                 gen_update_cc_op(s);
-                gen_jmp_im(pc_start - s->cs_base);
                 gen_helper_fldt_ST0(cpu_env, cpu_A0);
                 break;
             case 0x1f: /* fstpt mem */
                 gen_update_cc_op(s);
-                gen_jmp_im(pc_start - s->cs_base);
                 gen_helper_fstt_ST0(cpu_env, cpu_A0);
                 gen_helper_fpop(cpu_env);
                 break;
             case 0x2c: /* frstor mem */
                 gen_update_cc_op(s);
-                gen_jmp_im(pc_start - s->cs_base);
                 gen_helper_frstor(cpu_env, cpu_A0, tcg_const_i32(dflag - 1));
                 break;
             case 0x2e: /* fnsave mem */
                 gen_update_cc_op(s);
-                gen_jmp_im(pc_start - s->cs_base);
                 gen_helper_fsave(cpu_env, cpu_A0, tcg_const_i32(dflag - 1));
                 break;
             case 0x2f: /* fnstsw mem */
@@ -5889,7 +5872,6 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
                 break;
             case 0x3e: /* fbstp */
                 gen_update_cc_op(s);
-                gen_jmp_im(pc_start - s->cs_base);
                 gen_helper_fbst_ST0(cpu_env, cpu_A0);
                 gen_helper_fpop(cpu_env);
                 break;
@@ -5925,7 +5907,6 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
                 case 0: /* fnop */
                     /* check exceptions (FreeBSD FPU probe) */
                     gen_update_cc_op(s);
-                    gen_jmp_im(pc_start - s->cs_base);
                     gen_helper_fwait(cpu_env);
                     break;
                 default:
@@ -6896,7 +6877,6 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
             gen_exception(s, EXCP07_PREX, pc_start - s->cs_base);
         } else {
             gen_update_cc_op(s);
-            gen_jmp_im(pc_start - s->cs_base);
             gen_helper_fwait(cpu_env);
         }
         break;
@@ -6980,7 +6960,6 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
             goto illegal_op;
         gen_op_mov_v_reg(ot, cpu_T[0], reg);
         gen_lea_modrm(env, s, modrm);
-        gen_jmp_im(pc_start - s->cs_base);
         tcg_gen_trunc_tl_i32(cpu_tmp2_i32, cpu_T[0]);
         if (ot == MO_16) {
             gen_helper_boundw(cpu_env, cpu_A0, cpu_tmp2_i32);
@@ -7172,7 +7151,6 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
             } else {
                 gen_svm_check_intercept(s, pc_start, SVM_EXIT_LDTR_WRITE);
                 gen_ldst_modrm(env, s, modrm, MO_16, OR_TMP0, 0);
-                gen_jmp_im(pc_start - s->cs_base);
                 tcg_gen_trunc_tl_i32(cpu_tmp2_i32, cpu_T[0]);
                 gen_helper_lldt(cpu_env, cpu_tmp2_i32);
             }
@@ -7193,7 +7171,6 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
             } else {
                 gen_svm_check_intercept(s, pc_start, SVM_EXIT_TR_WRITE);
                 gen_ldst_modrm(env, s, modrm, MO_16, OR_TMP0, 0);
-                gen_jmp_im(pc_start - s->cs_base);
                 tcg_gen_trunc_tl_i32(cpu_tmp2_i32, cpu_T[0]);
                 gen_helper_ltr(cpu_env, cpu_tmp2_i32);
             }
@@ -7727,7 +7704,6 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
             }
             gen_lea_modrm(env, s, modrm);
             gen_update_cc_op(s);
-            gen_jmp_im(pc_start - s->cs_base);
             gen_helper_fxsave(cpu_env, cpu_A0, tcg_const_i32(dflag == MO_64));
             break;
         case 1: /* fxrstor */
@@ -7740,7 +7716,6 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
             }
             gen_lea_modrm(env, s, modrm);
             gen_update_cc_op(s);
-            gen_jmp_im(pc_start - s->cs_base);
             gen_helper_fxrstor(cpu_env, cpu_A0, tcg_const_i32(dflag == MO_64));
             break;
         case 2: /* ldmxcsr */
