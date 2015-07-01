@@ -121,6 +121,7 @@ int main(int argc, char **argv)
 #include "qom/object_interfaces.h"
 #include "qapi-event.h"
 #include "exec/semihost.h"
+#include "replay/replay.h"
 
 #define MAX_VIRTIO_CONSOLES 1
 #define MAX_SCLP_CONSOLES 1
@@ -1842,7 +1843,9 @@ static bool main_loop_should_exit(void)
             return true;
         }
     }
-    if (qemu_reset_requested()) {
+    if (qemu_reset_requested_get()
+        && replay_checkpoint(CHECKPOINT_RESET_REQUESTED)) {
+        qemu_reset_requested();
         pause_all_vcpus();
         cpu_synchronize_all_states();
         qemu_system_reset(VMRESET_REPORT);
@@ -4475,6 +4478,10 @@ int main(int argc, char **argv, char **envp)
     }
     qemu_add_globals();
 
+    /* This checkpoint is required by replay to separate prior clock
+       reading from the other reads, because timer polling functions query
+       clock values from the log. */
+    replay_checkpoint(CHECKPOINT_INIT);
     qdev_machine_init();
 
     current_machine->ram_size = ram_size;
@@ -4593,6 +4600,10 @@ int main(int argc, char **argv, char **envp)
     /* Done notifiers can load ROMs */
     rom_load_done();
 
+    /* This checkpoint is required by replay to separate prior clock
+       reading from the other reads, because timer polling functions query
+       clock values from the log. */
+    replay_checkpoint(CHECKPOINT_RESET);
     qemu_system_reset(VMRESET_SILENT);
     if (loadvm) {
         if (load_vmstate(loadvm) < 0) {

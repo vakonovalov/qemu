@@ -397,6 +397,11 @@ void qemu_clock_warp(QEMUClockType type)
         return;
     }
 
+    /* warp clock deterministically in record/replay mode */
+    if (!replay_checkpoint(CHECKPOINT_CLOCK_WARP)) {
+        return;
+    }
+
     if (icount_sleep) {
         /*
          * If the CPUs have been sleeping, advance QEMU_CLOCK_VIRTUAL timer now.
