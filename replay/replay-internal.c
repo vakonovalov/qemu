@@ -10,6 +10,7 @@
  */
 
 #include "qemu-common.h"
+#include "replay.h"
 #include "replay-internal.h"
 
 unsigned int replay_data_kind = -1;
@@ -34,6 +35,7 @@ void replay_put_byte(uint8_t byte)
 
 void replay_put_event(uint8_t event)
 {
+    assert(event < EVENT_COUNT);
     replay_put_byte(event);
 }
 
@@ -143,8 +145,15 @@ void replay_fetch_data_kind(void)
     if (replay_file) {
         if (!replay_has_unread_data) {
             replay_data_kind = replay_get_byte();
+            if (replay_data_kind == EVENT_INSTRUCTION) {
+                replay_state.instructions_count = replay_get_dword();
+            }
             replay_check_error();
             replay_has_unread_data = 1;
+            if (replay_data_kind >= EVENT_COUNT) {
+                error_report("Replay: unknown event kind %d", replay_data_kind);
+                exit(1);
+            }
         }
     }
 }
@@ -173,4 +182,19 @@ void replay_mutex_lock(void)
 void replay_mutex_unlock(void)
 {
     qemu_mutex_unlock(&lock);
+}
+
+/*! Saves cached instructions. */
+void replay_save_instructions(void)
+{
+    if (replay_file && replay_mode == REPLAY_MODE_RECORD) {
+        replay_mutex_lock();
+        int diff = (int)(replay_get_current_step() - replay_state.current_step);
+        if (first_cpu != NULL && diff > 0) {
+            replay_put_event(EVENT_INSTRUCTION);
+            replay_put_dword(diff);
+            replay_state.current_step += diff;
+        }
+        replay_mutex_unlock();
+    }
 }
