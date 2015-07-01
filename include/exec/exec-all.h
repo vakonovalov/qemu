@@ -92,7 +92,7 @@ void cpu_exec_init(CPUArchState *env);
 void QEMU_NORETURN cpu_loop_exit(CPUState *cpu);
 
 #if !defined(CONFIG_USER_ONLY)
-bool qemu_in_vcpu_thread(void);
+//bool qemu_in_vcpu_thread(void);
 void cpu_reload_memory_map(CPUState *cpu);
 void tcg_cpu_address_space_init(CPUState *cpu, AddressSpace *as);
 /* cputlb.c */
