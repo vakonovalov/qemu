@@ -27,6 +27,7 @@
 #include "exec/address-spaces.h"
 #include "exec/memory-internal.h"
 #include "qemu/rcu.h"
+#include "replay/replay.h"
 
 /* -icount align implementation. */
 
@@ -365,21 +366,24 @@ int cpu_exec(CPUArchState *env)
     /* This must be volatile so it is not trashed by longjmp() */
     volatile bool have_tb_lock = false;
 
+    /* replay_interrupt may need current_cpu */
+    current_cpu = cpu;
+
     if (cpu->halted) {
 #ifdef TARGET_I386
-        if (cpu->interrupt_request & CPU_INTERRUPT_POLL) {
+        if ((cpu->interrupt_request & CPU_INTERRUPT_POLL)
+            && replay_interrupt()) {
             apic_poll_irq(x86_cpu->apic_state);
             cpu_reset_interrupt(cpu, CPU_INTERRUPT_POLL);
         }
 #endif
         if (!cpu_has_work(cpu)) {
+            current_cpu = NULL;
             return EXCP_HALTED;
         }
 
         cpu->halted = 0;
     }
-
-    current_cpu = cpu;
 
     /* As long as current_cpu is null, up to the assignment just above,
      * requests by other threads to exit the execution loop are expected to
@@ -429,10 +433,21 @@ int cpu_exec(CPUArchState *env)
                     cpu->exception_index = -1;
                     break;
 #else
-                    cc->do_interrupt(cpu);
-                    cpu->exception_index = -1;
+                    if (replay_exception()) {
+                        cc->do_interrupt(cpu);
+                        cpu->exception_index = -1;
+                    } else if (!replay_has_interrupt()) {
+                        /* give a chance to iothread in replay mode */
+                        ret = EXCP_INTERRUPT;
+                        break;
+                    }
 #endif
                 }
+            } else if (replay_has_exception()
+                       && cpu->icount_decr.u16.low + cpu->icount_extra == 0) {
+                /* try to cause an exception pending in the log */
+                cpu_exec_nocache(env, 1, tb_find_fast(env), true);
+                break;
             }
 
             next_tb = 0; /* force lookup of first TB */
@@ -448,30 +463,40 @@ int cpu_exec(CPUArchState *env)
                         cpu->exception_index = EXCP_DEBUG;
                         cpu_loop_exit(cpu);
                     }
-                    if (interrupt_request & CPU_INTERRUPT_HALT) {
+                    if (replay_mode == REPLAY_MODE_PLAY
+                        && !replay_has_interrupt()) {
+                        /* Do nothing */
+                    } else if (interrupt_request & CPU_INTERRUPT_HALT) {
+                        replay_interrupt();
                         cpu->interrupt_request &= ~CPU_INTERRUPT_HALT;
                         cpu->halted = 1;
                         cpu->exception_index = EXCP_HLT;
                         cpu_loop_exit(cpu);
                     }
 #if defined(TARGET_I386)
-                    if (interrupt_request & CPU_INTERRUPT_INIT) {
+                    else if (interrupt_request & CPU_INTERRUPT_INIT) {
+                        replay_interrupt();
                         cpu_svm_check_intercept_param(env, SVM_EXIT_INIT, 0);
                         do_cpu_init(x86_cpu);
                         cpu->exception_index = EXCP_HALTED;
                         cpu_loop_exit(cpu);
                     }
 #else
-                    if (interrupt_request & CPU_INTERRUPT_RESET) {
+                    else if (interrupt_request & CPU_INTERRUPT_RESET) {
+                        replay_interrupt();
                         cpu_reset(cpu);
+                        cpu_loop_exit(cpu);
                     }
 #endif
                     /* The target hook has 3 exit conditions:
                        False when the interrupt isn't processed,
                        True when it is, and we should restart on a new TB,
                        and via longjmp via cpu_loop_exit.  */
-                    if (cc->cpu_exec_interrupt(cpu, interrupt_request)) {
-                        next_tb = 0;
+                    else {
+                        replay_interrupt();
+                        if (cc->cpu_exec_interrupt(cpu, interrupt_request)) {
+                            next_tb = 0;
+                        }
                     }
                     /* Don't use the cached interrupt_request value,
                        do_interrupt may have updated the EXITTB flag. */
@@ -482,7 +507,8 @@ int cpu_exec(CPUArchState *env)
                         next_tb = 0;
                     }
                 }
-                if (unlikely(cpu->exit_request)) {
+                if (unlikely(cpu->exit_request
+                             || replay_has_interrupt())) {
                     cpu->exit_request = 0;
                     cpu->exception_index = EXCP_INTERRUPT;
                     cpu_loop_exit(cpu);
