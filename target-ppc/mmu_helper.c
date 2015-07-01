@@ -2635,9 +2635,9 @@ void helper_booke206_tlbwe(CPUPPCState *env)
     tlb = booke206_cur_tlb(env);
 
     if (!tlb) {
-        helper_raise_exception_err(env, POWERPC_EXCP_PROGRAM,
-                                   POWERPC_EXCP_INVAL |
-                                   POWERPC_EXCP_INVAL_INVAL);
+        raise_exception_err(env, POWERPC_EXCP_PROGRAM,
+                            POWERPC_EXCP_INVAL |
+                            POWERPC_EXCP_INVAL_INVAL, GETPC());
     }
 
     /* check that we support the targeted size */
@@ -2645,9 +2645,9 @@ void helper_booke206_tlbwe(CPUPPCState *env)
     size_ps = booke206_tlbnps(env, tlbn);
     if ((env->spr[SPR_BOOKE_MAS1] & MAS1_VALID) && (tlbncfg & TLBnCFG_AVAIL) &&
         !(size_ps & (1 << size_tlb))) {
-        helper_raise_exception_err(env, POWERPC_EXCP_PROGRAM,
-                                   POWERPC_EXCP_INVAL |
-                                   POWERPC_EXCP_INVAL_INVAL);
+        raise_exception_err(env, POWERPC_EXCP_PROGRAM,
+                            POWERPC_EXCP_INVAL |
+                            POWERPC_EXCP_INVAL_INVAL, GETPC());
     }
 
     if (msr_gs) {
@@ -2924,10 +2924,6 @@ void tlb_fill(CPUState *cs, target_ulong addr, int is_write, int mmu_idx,
         ret = cpu_ppc_handle_mmu_fault(env, addr, is_write, mmu_idx);
     }
     if (unlikely(ret != 0)) {
-        if (likely(retaddr)) {
-            /* now we have a real cpu fault */
-            cpu_restore_state(cs, retaddr);
-        }
-        helper_raise_exception_err(env, cs->exception_index, env->error_code);
+        raise_exception_err(env, cs->exception_index, env->error_code, retaddr);
     }
 }

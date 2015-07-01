@@ -1,4 +1,5 @@
 DEF_HELPER_3(raise_exception_err, void, env, i32, i32)
+DEF_HELPER_3(raise_exception_end, void, env, i32, i32)
 DEF_HELPER_2(raise_exception, void, env, i32)
 DEF_HELPER_4(tw, void, env, tl, tl, i32)
 #if defined(TARGET_PPC64)
