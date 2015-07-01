@@ -11368,7 +11368,8 @@ static inline void gen_intermediate_code_internal(ARMCPU *cpu,
              !cs->singlestep_enabled &&
              !singlestep &&
              !dc->ss_active &&
-             dc->pc < next_page_start &&
+             /* +3 is for unaligned Thumb2 instructions */
+             dc->pc + 3 < next_page_start &&
              num_insns < max_insns);
 
     if (tb->cflags & CF_LAST_IO) {
