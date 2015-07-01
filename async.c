@@ -35,7 +35,7 @@ struct QEMUBH {
     AioContext *ctx;
     QEMUBHFunc *cb;
     void *opaque;
-    QEMUBH *next;
+    QSIMPLEQ_ENTRY(QEMUBH) next;
     bool scheduled;
     bool idle;
     bool deleted;
@@ -51,10 +51,7 @@ QEMUBH *aio_bh_new(AioContext *ctx, QEMUBHFunc *cb, void *opaque)
         .opaque = opaque,
     };
     qemu_mutex_lock(&ctx->bh_lock);
-    bh->next = ctx->first_bh;
-    /* Make sure that the members are ready before putting bh into list */
-    smp_wmb();
-    ctx->first_bh = bh;
+    QSIMPLEQ_INSERT_TAIL_RCU(&ctx->bh_queue, bh, next);
     qemu_mutex_unlock(&ctx->bh_lock);
     return bh;
 }
@@ -67,16 +64,15 @@ void aio_bh_call(QEMUBH *bh)
 /* Multiple occurrences of aio_bh_poll cannot be called concurrently */
 int aio_bh_poll(AioContext *ctx)
 {
-    QEMUBH *bh, **bhp, *next;
+    QEMUBH *bh, *next, *prev;
     int ret;
 
     ctx->walking_bh++;
 
     ret = 0;
-    for (bh = ctx->first_bh; bh; bh = next) {
+    QSIMPLEQ_FOREACH(bh, &ctx->bh_queue, next) {
         /* Make sure that fetching bh happens before accessing its members */
         smp_read_barrier_depends();
-        next = bh->next;
         /* The atomic_xchg is paired with the one in qemu_bh_schedule.  The
          * implicit memory barrier ensures that the callback sees all writes
          * done by the scheduling thread.  It also ensures that the scheduling
@@ -96,14 +92,13 @@ int aio_bh_poll(AioContext *ctx)
     /* remove deleted bhs */
     if (!ctx->walking_bh) {
         qemu_mutex_lock(&ctx->bh_lock);
-        bhp = &ctx->first_bh;
-        while (*bhp) {
-            bh = *bhp;
+        prev = NULL;
+        QSIMPLEQ_FOREACH_SAFE(bh, &ctx->bh_queue, next, next) {
             if (bh->deleted) {
-                *bhp = bh->next;
+                QSIMPLEQ_REMOVE_AFTER(&ctx->bh_queue, prev, QEMUBH, next);
                 g_free(bh);
             } else {
-                bhp = &bh->next;
+                prev = bh;
             }
         }
         qemu_mutex_unlock(&ctx->bh_lock);
@@ -162,7 +157,7 @@ aio_compute_timeout(AioContext *ctx)
     int timeout = -1;
     QEMUBH *bh;
 
-    for (bh = ctx->first_bh; bh; bh = bh->next) {
+    QSIMPLEQ_FOREACH(bh, &ctx->bh_queue, next) {
         if (!bh->deleted && bh->scheduled) {
             if (bh->idle) {
                 /* idle bottom halves will be polled at least
@@ -205,7 +200,7 @@ aio_ctx_check(GSource *source)
     AioContext *ctx = (AioContext *) source;
     QEMUBH *bh;
 
-    for (bh = ctx->first_bh; bh; bh = bh->next) {
+    QSIMPLEQ_FOREACH(bh, &ctx->bh_queue, next) {
         if (!bh->deleted && bh->scheduled) {
             return true;
 	}
@@ -310,6 +305,7 @@ AioContext *aio_context_new(Error **errp)
     qemu_mutex_init(&ctx->bh_lock);
     rfifolock_init(&ctx->lock, aio_rfifolock_cb, ctx);
     timerlistgroup_init(&ctx->tlg, aio_timerlist_notify, ctx);
+    QSIMPLEQ_INIT(&ctx->bh_queue);
 
     return ctx;
 }

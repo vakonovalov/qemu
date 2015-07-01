@@ -71,8 +71,8 @@ struct AioContext {
     /* lock to protect between bh's adders and deleter */
     QemuMutex bh_lock;
 
-    /* Anchor of the list of Bottom Halves belonging to the context */
-    struct QEMUBH *first_bh;
+    /* List of Bottom Halves belonging to the context */
+    QSIMPLEQ_HEAD(, QEMUBH) bh_queue;
 
     /* A simple lock used to protect the first_bh list, and ensure that
      * no callbacks are removed while we're walking and dispatching callbacks.

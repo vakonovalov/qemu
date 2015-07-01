@@ -277,6 +277,13 @@ struct {                                                                \
     (head)->sqh_last = &(elm)->field.sqe_next;                          \
 } while (/*CONSTCOND*/0)
 
+#define QSIMPLEQ_INSERT_TAIL_RCU(head, elm, field) do {                 \
+    (elm)->field.sqe_next = NULL;                                       \
+    smp_wmb();                                                          \
+    atomic_rcu_set((head)->sqh_last, (elm));                            \
+    (head)->sqh_last = &(elm)->field.sqe_next;                          \
+} while (/*CONSTCOND*/0)
+
 #define QSIMPLEQ_INSERT_AFTER(head, listelm, elm, field) do {           \
     if (((elm)->field.sqe_next = (listelm)->field.sqe_next) == NULL)    \
         (head)->sqh_last = &(elm)->field.sqe_next;                      \
@@ -309,6 +316,17 @@ struct {                                                                \
         if ((curelm->field.sqe_next =                                   \
             curelm->field.sqe_next->field.sqe_next) == NULL)            \
                 (head)->sqh_last = &(curelm)->field.sqe_next;           \
+    }                                                                   \
+} while (/*CONSTCOND*/0)
+
+#define QSIMPLEQ_REMOVE_AFTER(head, curelm, type, field) do {           \
+    if ((curelm) == NULL) {                                             \
+        QSIMPLEQ_REMOVE_HEAD((head), field);                            \
+    } else {                                                            \
+        if (((curelm)->field.sqe_next =                                 \
+            (curelm)->field.sqe_next->field.sqe_next) == NULL) {        \
+                (head)->sqh_last = &(curelm)->field.sqe_next;           \
+        }                                                               \
     }                                                                   \
 } while (/*CONSTCOND*/0)
 
