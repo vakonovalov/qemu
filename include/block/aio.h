@@ -157,6 +157,11 @@ QEMUBH *aio_bh_new(AioContext *ctx, QEMUBHFunc *cb, void *opaque);
 void aio_notify(AioContext *ctx);
 
 /**
+ * aio_bh_call: Executes callback function of the specified BH.
+ */
+void aio_bh_call(QEMUBH *bh);
+
+/**
  * aio_bh_poll: Poll bottom halves for an AioContext.
  *
  * These are internal functions used by the QEMU main loop.
