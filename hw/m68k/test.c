@@ -39,7 +39,7 @@ static uint32_t bia_readb(void *opaque, hwaddr offset)
         hw_error("Bad BIA read offset 0x%x", (int)offset);
     }
     qemu_log("bia_read offset=0x%x\n", (int)offset);
-    return s->value * 10;
+    return s->value;
 }
 
 static const MemoryRegionOps bia_ops = {
