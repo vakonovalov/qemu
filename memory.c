@@ -26,7 +26,7 @@
 #include "exec/ram_addr.h"
 #include "sysemu/sysemu.h"
 
-//#define DEBUG_UNASSIGNED
+#define DEBUG_UNASSIGNED
 
 static unsigned memory_region_transaction_depth;
 static bool memory_region_update_pending;
