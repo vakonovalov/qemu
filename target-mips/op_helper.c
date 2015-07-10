@@ -81,9 +81,9 @@ HELPER_LD(ld, ldq, int64_t)
 #if defined(CONFIG_USER_ONLY)
 #define HELPER_ST(name, insn, type)                                     \
 static inline void do_##name(CPUMIPSState *env, target_ulong addr,      \
-                             type val, int mem_idx)                     \
+                             type val, int mem_idx, uintptr_t retaddr)  \
 {                                                                       \
-    cpu_##insn##_data(env, addr, val);                                  \
+    cpu_##insn##_data_ra(env, addr, val, retaddr);                      \
 }
 #else
 #define HELPER_ST(name, insn, type)                                     \
@@ -494,7 +494,7 @@ void helper_ldm(CPUMIPSState *env, target_ulong addr, target_ulong reglist,
     }
 
     if (do_r31) {
-        env->active_tc.gpr[31] = do_ld(env, addr, mem_idx);
+        env->active_tc.gpr[31] = do_ld(env, addr, mem_idx, GETPC());
     }
 }
 
