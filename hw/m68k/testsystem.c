@@ -16,7 +16,7 @@ typedef struct {
     MemoryRegion iomem;
     /* base address */
     target_ulong base;
-    char val;
+    int val;
 } ad_state;
 
 static void ad_writeb(void *opaque, hwaddr offset,
@@ -27,7 +27,7 @@ static void ad_writeb(void *opaque, hwaddr offset,
     if (offset > 0xF) {
         hw_error("Bad AD write offset 0x%x", (int)offset);
     }
-    s->val = value*10;
+    s->val = value;
     printf("ad_write offset=0x%x value=%x\n", (int)offset, value);
 }
 
@@ -42,17 +42,39 @@ static uint32_t ad_readb(void *opaque, hwaddr offset)
     return s->val;
 }
 
+static void ad_writew(void *opaque, hwaddr offset,
+                              uint32_t value)
+{
+	ad_writeb(opaque, offset, value);
+}
+
+static void ad_writel(void *opaque, hwaddr offset,
+                              uint32_t value)
+{
+	ad_writeb(opaque, offset, value);
+}
+
+static uint32_t ad_readw(void *opaque, hwaddr offset)
+{
+	return ad_readb(opaque, offset);
+}
+
+static uint32_t ad_readl(void *opaque, hwaddr offset)
+{
+	return ad_readb(opaque, offset);
+}
+
 static const MemoryRegionOps ad_ops = {
     .old_mmio = {
         .read = {
             ad_readb,
-	    ad_readb,
-	    ad_readb,
+	    ad_readw,
+	    ad_readl,
         },
         .write = {
             ad_writeb,
-	    ad_writeb,
-	    ad_writeb,
+	    ad_writew,
+	    ad_writel,
         },
     },
     .endianness = DEVICE_NATIVE_ENDIAN,
