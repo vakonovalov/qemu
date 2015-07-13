@@ -19,6 +19,7 @@
 #define MAX_ROM_SIZE  0x20000
 #define IWM_BASE_ADDR 0xDFE1FF // dBase
 #define VIA_BASE_ADDR 0xEFE1FE // vBase
+#define MY_DEV_BASE_ADDR 0x800000 // StDev
 #define SCREEN_WIDTH  512
 #define SCREEN_HEIGHT 342
 
@@ -124,6 +125,7 @@ static void mac128k_init(MachineState *machine)
 
     iwm_init(address_space_mem, IWM_BASE_ADDR, cpu);
     sy6522_init(address_space_mem, VIA_BASE_ADDR, cpu);
+    StrDev_init(address_space_mem, MY_DEV_BASE_ADDR, cpu);
 
     /* Display */
     display->con = graphic_console_init(NULL, 0, &mac_display_ops, display);
