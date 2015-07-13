@@ -16,7 +16,7 @@ typedef struct {
     MemoryRegion iomem;
     /* base address */
     target_ulong base;
-    char value; 
+    int value; 
 } bia_state;
 
 static void bia_writeb(void *opaque, hwaddr offset,
@@ -42,17 +42,38 @@ static uint32_t bia_readb(void *opaque, hwaddr offset)
     return s->value;
 }
 
+static void bia_writew(void *opaque, hwaddr offset,
+                              uint32_t value)
+{
+	bia_writeb(opaque, offset, value);
+}
+
+static void bia_writel(void *opaque, hwaddr offset,
+                              uint32_t value)
+{
+	bia_writeb(opaque, offset, value);
+}
+
+static uint32_t bia_readw(void *opaque, hwaddr offset)
+{
+	return bia_readb(opaque, offset);
+}
+
+static uint32_t bia_readl(void *opaque, hwaddr offset)
+{
+	return bia_readb(opaque, offset);
+}
 static const MemoryRegionOps bia_ops = {
     .old_mmio = {
         .read = {
             bia_readb,
-            bia_readb,
-            bia_readb,
+            bia_readw,
+            bia_readl,
         },
         .write = {
             bia_writeb,
-            bia_writeb,
-            bia_writeb,
+            bia_writew,
+            bia_writel,
         },
     },
     .endianness = DEVICE_NATIVE_ENDIAN,
