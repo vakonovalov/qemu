@@ -10,13 +10,18 @@
 #include "hw/hw.h"
 #include "qemu/timer.h"
 #include "hw/m68k/mac128k.h"
-
+#define zero 0
 typedef struct {
     M68kCPU *cpu;
     MemoryRegion iomem;
     /* base address */
+    QEMUTimer *timer;
     target_ulong base;
+
     int value; 
+    int max_value;
+    int is_dec;
+    int step;
 } bia_state;
 
 static void bia_writeb(void *opaque, hwaddr offset,
@@ -28,7 +33,10 @@ static void bia_writeb(void *opaque, hwaddr offset,
         hw_error("Bad BIA write offset 0x%x", (int)offset);
     }
     qemu_log("bia_write offset=0x%x value=0x%x\n", (int)offset, value);
-    s->value = value;
+    if (offset == 0x0) s->value = value;
+    else if (offset == 0x4) s->max_value = value;
+    else if (offset == 0x8) s->is_dec = value;
+    else if (offset == 0xC) s->step = value;
 }
 
 static uint32_t bia_readb(void *opaque, hwaddr offset)
@@ -38,7 +46,7 @@ static uint32_t bia_readb(void *opaque, hwaddr offset)
     if (offset > 0xF) {
         hw_error("Bad BIA read offset 0x%x", (int)offset);
     }
-    qemu_log("bia_read offset=0x%x\n", (int)offset);
+    qemu_log("bia_read offset=0x%x, %i\n", (int)offset, s->value);
     return s->value;
 }
 
@@ -79,6 +87,18 @@ static const MemoryRegionOps bia_ops = {
     .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
+static void mt_interrupt(void * opaque)
+{
+    bia_state *s = (bia_state *)opaque;
+    //printf("Alarm raised (%i)\n", s->value);
+    timer_mod_ns(s->timer, qemu_clock_get_ns(QEMU_CLOCK_REALTIME) + 1 * get_ticks_per_sec());
+    if (s->value != s->max_value)
+    {
+	if (s->is_dec == 1) s->value += s->step;
+        else s->value -= s->step;
+    }
+}
+
 void test_init(MemoryRegion *sysmem, uint32_t base, M68kCPU *cpu)
 {
     bia_state *s;
@@ -91,4 +111,10 @@ void test_init(MemoryRegion *sysmem, uint32_t base, M68kCPU *cpu)
     memory_region_add_subregion(sysmem, base & TARGET_PAGE_MASK, &s->iomem);
 
     s->cpu = cpu;
+    s->value = 0; 
+    s->max_value = 10;
+    s->is_dec = 1;
+    s->step = 1;
+    s->timer = timer_new_ms(QEMU_CLOCK_REALTIME, mt_interrupt, s);
+    timer_mod_ns(s->timer, qemu_clock_get_ns(QEMU_CLOCK_REALTIME) + 1 * get_ticks_per_sec());
 }

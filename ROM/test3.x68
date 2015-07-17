@@ -1,18 +1,22 @@
+
  ORG    $400000
  * Control sum?
      DC.L    0
  * Address of the first instruction
      DC.L    START
  START:                  ; first instruction of program
-     move.l  #$1A700, a0
+     S:
      move.l #0, d1
      move.l #28, d2  
-  
-     move.l  #$AFED31, $800000
+
+     move.l  #$1A700, a0
+     *move.l  #0, $800000 
+    * move.l  #15, $800004 
      move.l  $800000, d0 
      bra PRINT
      Q:
 
+     bra S
      bra L
      
 PRINT:
@@ -389,6 +393,16 @@ LF:
 
 
      
+
+
+
+
+
+
+
+
+
+
 
 
 
