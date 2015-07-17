@@ -38,7 +38,6 @@ do { printf("pl031: " fmt , ## __VA_ARGS__); } while (0)
 
 typedef struct PL031State {
     SysBusDevice parent_obj;
-
     MemoryRegion iomem;
     QEMUTimer *timer;
     qemu_irq irq;
@@ -70,7 +69,6 @@ static void pl031_update(PL031State *s)
 static void pl031_interrupt(void * opaque)
 {
     PL031State *s = (PL031State *)opaque;
-
     s->is = 1;
     DPRINTF("Alarm raised\n");
     pl031_update(s);
