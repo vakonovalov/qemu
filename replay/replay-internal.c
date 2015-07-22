@@ -39,7 +39,6 @@ void replay_put_event(uint8_t event)
     replay_put_byte(event);
 }
 
-
 void replay_put_word(uint16_t word)
 {
     replay_put_byte(word >> 8);
