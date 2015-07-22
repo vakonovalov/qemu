@@ -14,6 +14,7 @@
 typedef struct {
     M68kCPU *cpu;
     MemoryRegion iomem;
+    qemu_irq irq;
     /* base address */
     QEMUTimer *timer;
     target_ulong base;
@@ -28,12 +29,16 @@ static void bia_writeb(void *opaque, hwaddr offset,
                               uint32_t value)
 {
     bia_state *s = (bia_state *)opaque;
-    offset = (offset - (s->base & ~TARGET_PAGE_MASK)) >> 9;
+    //offset = (offset - (s->base & ~TARGET_PAGE_MASK)) >> 9;
     if (offset > 0xF) {
         hw_error("Bad BIA write offset 0x%x", (int)offset);
     }
-    qemu_log("bia_write offset=0x%x value=0x%x\n", (int)offset, value);
-    if (offset == 0x0) s->value = value;
+    printf("bia_write offset=0x%x value=0x%x\n", (int)offset, value);
+    if (offset == 0x0)
+    {
+	s->value = value;
+	m68k_set_irq_level(s->cpu, 1, 0x64 >> 2);
+    }
     else if (offset == 0x4) s->max_value = value;
     else if (offset == 0x8) s->is_dec = value;
     else if (offset == 0xC) s->step = value;
@@ -42,11 +47,12 @@ static void bia_writeb(void *opaque, hwaddr offset,
 static uint32_t bia_readb(void *opaque, hwaddr offset)
 {
     bia_state *s = (bia_state *)opaque;
-    offset = (offset - (s->base & ~TARGET_PAGE_MASK)) >> 9;
+    //offset = (offset - (s->base & ~TARGET_PAGE_MASK)) >> 9;
     if (offset > 0xF) {
         hw_error("Bad BIA read offset 0x%x", (int)offset);
     }
-    qemu_log("bia_read offset=0x%x, %i\n", (int)offset, s->value);
+    printf("bia_read offset=0x%x, %i\n", (int)offset, s->value);
+    m68k_set_irq_level(s->cpu, 0, 0x64 >> 2);
     return s->value;
 }
 
@@ -90,12 +96,12 @@ static const MemoryRegionOps bia_ops = {
 static void mt_interrupt(void * opaque)
 {
     bia_state *s = (bia_state *)opaque;
-    //printf("Alarm raised (%i)\n", s->value);
     timer_mod_ns(s->timer, qemu_clock_get_ns(QEMU_CLOCK_REALTIME) + 1 * get_ticks_per_sec());
     if (s->value != s->max_value)
     {
 	if (s->is_dec == 1) s->value += s->step;
         else s->value -= s->step;
+	m68k_set_irq_level(s->cpu, 1, 0x64 >> 2);
     }
 }
 
