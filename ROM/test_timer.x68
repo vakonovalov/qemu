@@ -4,20 +4,24 @@
      DC.L    0
  * Address of the first instruction
      DC.L    START
- START:                  ; first instruction of program
-     S:
+START:                  ; first instruction of program
+     move.l  #0, $800000 
+     move.l  #10000, $800004 
+     move.l #HANDLER, $64
+     move.l #$10000, sp
+
+     READ:
+     stop #$2000
+     bra READ
+
+HANDLER:
      move.l #0, d1
      move.l #28, d2  
-
      move.l  #$1A700, a0
-     *move.l  #0, $800000 
-    * move.l  #15, $800004 
      move.l  $800000, d0 
      bra PRINT
      Q:
-
-     bra S
-     bra L
+     rte
      
 PRINT:
      move.l d0, d3
@@ -386,40 +390,7 @@ LF:
      sub.l  #511, a0
      bra E
 
-     L:
-     bra L
    END    START        ; last line of source
-
-
-
-     
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 *~Font name~Courier New~
 *~Font size~10~
