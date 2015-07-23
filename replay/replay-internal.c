@@ -12,6 +12,7 @@
 #include "qemu-common.h"
 #include "replay.h"
 #include "replay-internal.h"
+#include "qemu/error-report.h"
 
 unsigned int replay_data_kind = -1;
 static unsigned int replay_has_unread_data;
