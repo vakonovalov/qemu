@@ -113,7 +113,9 @@ void replay_get_array(uint8_t *buf, size_t *size)
 {
     if (replay_file) {
         *size = replay_get_dword();
-        fread(buf, 1, *size, replay_file);
+        if (fread(buf, 1, *size, replay_file) != *size) {
+            error_report("replay read error");
+        }
     }
 }
 
@@ -122,7 +124,9 @@ void replay_get_array_alloc(uint8_t **buf, size_t *size)
     if (replay_file) {
         *size = replay_get_dword();
         *buf = g_malloc(*size);
-        fread(*buf, 1, *size, replay_file);
+        if (fread(*buf, 1, *size, replay_file) != *size) {
+            error_report("replay read error");
+        }
     }
 }
 
