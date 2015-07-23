@@ -12,7 +12,7 @@
 #include "qemu-common.h"
 #include "replay.h"
 #include "replay-internal.h"
-
+#include "qemu/error-report.h"
 
 int64_t replay_save_clock(ReplayClockKind kind, int64_t clock)
 {
