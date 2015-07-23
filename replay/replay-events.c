@@ -177,6 +177,11 @@ static void replay_save_event(Event *event, int checkpoint)
         case REPLAY_ASYNC_EVENT_BH:
             replay_put_qword(event->id);
             break;
+        case REPLAY_ASYNC_EVENT_INPUT_SYNC:
+            break;
+        default:
+            error_report("Unknown ID %d of replay event", read_event_kind);
+            exit(1);
         }
     }
 }
