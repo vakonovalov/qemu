@@ -2942,7 +2942,6 @@ int main(int argc, char **argv, char **envp)
 {
     int i;
     int snapshot, linux_boot;
-    const char *icount_option = NULL;
     const char *initrd_filename;
     const char *kernel_filename, *kernel_cmdline;
     const char *boot_order = NULL;
