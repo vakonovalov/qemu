@@ -50,6 +50,7 @@
 #include "qemu/rcu_queue.h"
 #include "exec/cputlb.h"
 #include "translate-all.h"
+#include "replay/replay.h"
 
 #include "exec/memory-internal.h"
 #include "exec/ram_addr.h"
