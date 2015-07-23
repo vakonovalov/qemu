@@ -2,8 +2,6 @@
 #include "sysemu/sysemu.h"
 #include "qemu/notify.h"
 #include "ui/input.h"
-#include "block/aio.h"
-#include "block/thread-pool.h"
 
 ReplayMode replay_mode;
 
@@ -54,13 +52,5 @@ void qemu_input_event_send_impl(QemuConsole *src, InputEvent *evt)
 }
 
 void qemu_input_event_sync_impl(void)
-{
-}
-
-void aio_bh_call(QEMUBH *bh)
-{
-}
-
-void thread_pool_work(ThreadPool *pool, void *r)
 {
 }
