@@ -243,7 +243,6 @@ static void replay_enable(const char *fname, int mode)
         fseek(replay_file, HEADER_SIZE, SEEK_SET);
     } else if (replay_mode == REPLAY_MODE_PLAY) {
         unsigned int version = replay_get_dword();
-        uint64_t offset = replay_get_qword();
         if (version != REPLAY_VERSION) {
             fprintf(stderr, "Replay: invalid input log file version\n");
             exit(1);
@@ -316,16 +315,12 @@ void replay_finish(void)
     /* finalize the file */
     if (replay_file) {
         if (replay_mode == REPLAY_MODE_RECORD) {
-            uint64_t offset = 0;
             /* write end event */
             replay_put_event(EVENT_END);
 
             /* write header */
             fseek(replay_file, 0, SEEK_SET);
             replay_put_dword(REPLAY_VERSION);
-            /* Just zero in this version.
-               But will be used later for snapshots table. */
-            replay_put_qword(offset);
         }
 
         fclose(replay_file);
