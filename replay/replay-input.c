@@ -12,6 +12,7 @@
 #include "qemu-common.h"
 #include "replay.h"
 #include "replay-internal.h"
+#include "qemu/notify.h"
 #include "ui/input.h"
 #include "qapi/qmp-output-visitor.h"
 #include "qapi/qmp-input-visitor.h"
