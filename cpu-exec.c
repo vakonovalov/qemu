@@ -456,6 +456,7 @@ int cpu_exec(CPUArchState *env)
                        && cpu->icount_decr.u16.low + cpu->icount_extra == 0) {
                 /* try to cause an exception pending in the log */
                 cpu_exec_nocache(env, 1, tb_find_fast(env), true);
+                ret = -1;
                 break;
             }
 
