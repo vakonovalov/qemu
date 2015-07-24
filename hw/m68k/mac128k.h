@@ -7,7 +7,7 @@ struct MemoryRegion;
 void iwm_init(MemoryRegion *sysmem, uint32_t base, M68kCPU *cpu);
 
 /* sy6522.c */
-void sy6522_init(MemoryRegion *sysmem, uint32_t base, M68kCPU *cpu);
+void sy6522_init(MemoryRegion *rom, MemoryRegion *ram, uint32_t base, M68kCPU *cpu);
 
 /* test.c */
 void test_init(MemoryRegion *sysmem, uint32_t base, M68kCPU *cpu);
