@@ -3,6 +3,9 @@
     DC.L MAIN
     
 MAIN:
+    move.l #INTERRUPT,$64    
+
+
     move.l #$010000,sp
     move.l #$01A700,a0    
     lea N0,a1
@@ -19,12 +22,12 @@ MAIN:
     bne .PRINT_ALL_NUMBERS
  
     move.l #$800000,a6
-    *move.l #$50000000,d4    
+    *move.l #$5,d4    
     *move.l d4,4(a6)
-    LALAL:
-    move.l (a6),d4
     
-    bsr PRINT_REGISTER
+    LALAL:
+    stop #$2000
+
     bra LALAL
 
 PRINT:
@@ -64,6 +67,17 @@ PRINT_REGISTER:
     dbf d7,.LOOP_PR_REGISTER
     rts
 
+INTERRUPT:
+    move.l #$800000,a6
+    move.b #0,16(a6)
+    move.l (a6),d4
+    
+    bsr PRINT_REGISTER
+    *move.l #$800000,a6	
+    *move.l #$5,d4    
+    *move.l d4,4(a6)
+    rte
+
 
 NUMBERS:
 N0 DC.B $18,$24,$42,$42,$42,$42,$24,$18
@@ -84,6 +98,8 @@ NE DC.B $7e,$40,$40,$7c,$40,$40,$40,$7e
 NF DC.B $7e,$40,$40,$78,$40,$40,$40,$40
 
     END MAIN
+
+
 
 
 

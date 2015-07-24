@@ -15,6 +15,7 @@
 #define MAX_VALUE 0x4
 #define IS_DEC 0x8
 #define STEP 0xc
+#define INT_FLAG_CLEAR 0x10
 
 typedef struct {
     M68kCPU *cpu;
@@ -28,7 +29,24 @@ typedef struct {
     unsigned int max_value;
     unsigned int is_dec;
     unsigned int step;
+
+    qemu_irq irq;
+    uint8_t int_flag;
 } my_state;
+
+static void device_interrupt_update(void *opaque);
+
+static void clk_int_handler(void *opaque, int n, int level) {
+
+	my_state *s = (my_state *)opaque;
+/*    if (level) {
+        s->ipr |= 1 << irq;
+    } else {
+        s->ipr &= ~(1 << irq);
+    }
+*/
+	printf("Hello! I want to play a game... %d\n",s->value);
+}
 
 static void writeb(void *opaque, hwaddr offset,
                               uint32_t value)
@@ -45,6 +63,11 @@ static void writeb(void *opaque, hwaddr offset,
 	case STEP:
 		s->step = (s->step & 0xffffff00) + (value & 0xff);
 		break;
+	case INT_FLAG_CLEAR:
+		s->int_flag = value;
+		device_interrupt_update(s);
+		break;
+		
 	default:
 		break;
 	}	
@@ -77,6 +100,10 @@ static void writew(void *opaque, hwaddr offset,
 	case STEP:
 		s->step = (s->step & 0xffff0000) + (value & 0xffff);
 		break;
+	case INT_FLAG_CLEAR:
+		s->int_flag = value;
+		device_interrupt_update(s);
+		break;
 	default:
 		break;
 	}	
@@ -101,6 +128,10 @@ static void writel(void *opaque, hwaddr offset,
 		break;
 	case STEP:
 		s->step = value;
+		break;
+	case INT_FLAG_CLEAR:
+		s->int_flag = value;
+		device_interrupt_update(s);
 		break;
 	default:
 		break;
@@ -142,15 +173,30 @@ static const MemoryRegionOps via_ops = {
     .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
+static void device_interrupt_update(void *opaque) {
+	my_state *s = (my_state *)opaque;
+
+	m68k_set_irq_level(s->cpu,s->int_flag,25);
+	
+	return;
+}
+
 static void device_callback(void * opaque) {
 	my_state *s = (my_state *)opaque;
 	if (s->is_dec) s->value -= s->step;
 	else s->value += s->step;
-	if (s->value > s->max_value)
-		s->value = s->value % s->max_value;		
+	if (s->value >= s->max_value) {
+		if (s->is_dec) s->value = s->max_value + s->value;
+		else s->value = s->value % s->max_value;
+	}
  
 	s->initial = qemu_clock_get_ns(0);
         timer_mod_ns(s->timer, s->initial + get_ticks_per_sec());
+
+	qemu_set_irq(s->irq, 0);
+	s->int_flag = 1;
+	device_interrupt_update(s);
+
 	return;
 }
 
@@ -169,9 +215,11 @@ void true_master_crazy_code_init(MemoryRegion *sysmem, uint32_t base, M68kCPU *c
 
 	s->timer = timer_new_ns(QEMU_CLOCK_REALTIME, device_callback, s);
 	s->initial = qemu_clock_get_ns(0);
-	s->value = 50;
-	s->max_value = 100;
+	s->value = 5;
+	s->max_value = 10;
 	s->is_dec = 1;
-	s->step = 1;
+	s->step = 2;
         timer_mod_ns(s->timer, s->initial + get_ticks_per_sec());
+
+	s->irq = qemu_allocate_irq(clk_int_handler, s, 25);
 }
