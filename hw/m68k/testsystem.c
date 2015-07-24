@@ -17,6 +17,7 @@
 #define RTC_MV      0x04    /* max value */
 #define RTC_ID      0x08    /* is_dec */
 #define RTC_ST      0x0c    /* step */
+
 #define DPRINTF(fmt, ...) do {} while(0)
 
 typedef struct {
@@ -45,7 +46,9 @@ static void ad_interrupt(void * opaque)
     uint32_t ticks = 1;
     int64_t now = qemu_clock_get_ns(rtc_clock);
     timer_mod(s->timer, now + (int64_t)ticks * get_ticks_per_sec());
-    printf("Alarm raised\n");
+
+    m68k_set_irq_level(s->cpu, 1, 25);
+    printf("value: %d\n", s->val);
 }
 
 static void ad_writeb(void *opaque, hwaddr offset,
@@ -92,6 +95,7 @@ static uint32_t ad_readb(void *opaque, hwaddr offset)
   	value = s->step;
 	break;
     }
+    m68k_set_irq_level(s->cpu, 0, 25);
     return value;
 }
 
