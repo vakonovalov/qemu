@@ -16,6 +16,7 @@
 #define RTC_VL      0x00    /* Data register */
 #define RTC_MX      0x04    /* Max Data register */
 #define RTC_DC      0x08    /* Reverse register */
+#define RTC_ST      0x0C    /* Step register */
 
 typedef struct {
     M68kCPU *cpu;
@@ -23,22 +24,41 @@ typedef struct {
     int value;
     int mxvalue;
     int is_dec;
+    int step;
     QEMUTimer *timer;
     /* base address */
+    qemu_irq irq;
     target_ulong base;
 } via_state;
 
 
-static void timer_writeb(void *opaque, hwaddr offset,
-                              uint32_t value)
+static void timer_writeb(void *opaque, hwaddr offset, uint32_t value)
 {
-    via_state *s = (via_state *)opaque;
+     via_state *s = (via_state *)opaque;
     if (offset > 0xF) {
         hw_error("Bad VIA write offset 0x%x", (int)offset);
-        qemu_log("Bad VIA write offset 0x%x", (int)offset);
+	 qemu_log("Bad VIA write offset 0x%x", (int)offset);
     }
-    s->value = value;
-    qemu_log("via_write offset=0x%x value=0x%x\n", (int)offset, value);
+    switch (offset) 
+    {
+        case RTC_VL:
+	    s->value = value;
+	    qemu_log("via_write offset=0x%x value=0x%x\n", (int)offset, value);
+            break;
+        case RTC_MX:
+            s->mxvalue = value;
+ 	     qemu_log("via_write offset=0x%x value=0x%x\n", (int)offset, value);
+            break; 
+        case RTC_DC:
+	     qemu_log("via_write offset=0x%x value=0x%x\n", (int)offset, value);
+            s->is_dec = value ;
+            break;  
+        case RTC_ST:
+	   qemu_log("via_read offset=0x%x\n", (int)offset);
+	   qemu_log("via_read value=%d\n", s->value);
+           s->step = value;
+        break;
+    }
 }
 
 static void timer_writew(void *opaque, hwaddr offset, uint32_t value)
@@ -62,6 +82,11 @@ static void timer_writew(void *opaque, hwaddr offset, uint32_t value)
 	     qemu_log("via_write offset=0x%x value=0x%x\n", (int)offset, value);
             s->is_dec = value ;
             break;  
+        case RTC_ST:
+	   qemu_log("via_read offset=0x%x\n", (int)offset);
+	   qemu_log("via_read value=%d\n", s->value);
+           s->step = value;
+        break;
     }
 }
 
@@ -86,6 +111,11 @@ static void timer_writel(void *opaque, hwaddr offset,  uint32_t value)
 	    qemu_log("via_write offset=0x%x value=0x%x\n", (int)offset, value);
             s->is_dec = value ;
             break;  
+        case RTC_ST:
+	   qemu_log("via_read offset=0x%x\n", (int)offset);
+	   qemu_log("via_read value=%d\n", s->value);
+           s->step = value;
+        break;
     }
 }
 
@@ -109,6 +139,10 @@ static uint32_t timer_readb(void *opaque, hwaddr offset)
 	   qemu_log("via_read offset=0x%x\n", (int)offset);
 	   qemu_log("via_read value=%d\n", s->value);
            return s->is_dec;
+        case RTC_ST:
+	   qemu_log("via_read offset=0x%x\n", (int)offset);
+	   qemu_log("via_read value=%d\n", s->value);
+           return s->step;
     }
     return 0;
 }
@@ -134,6 +168,10 @@ static uint32_t timer_readw(void *opaque, hwaddr offset)
 	   qemu_log("via_read offset=0x%x\n", (int)offset);
 	   qemu_log("via_read value=%d\n", s->value);
            return s->is_dec;
+        case RTC_ST:
+	   qemu_log("via_read offset=0x%x\n", (int)offset);
+	   qemu_log("via_read value=%d\n", s->value);
+           return s->step;
     }
     return 0;
 }
@@ -150,6 +188,7 @@ static uint32_t timer_readl(void *opaque, hwaddr offset)
         case RTC_VL:
 	   qemu_log("via_read offset=0x%x\n", (int)offset);
 	   qemu_log("via_read value=%d\n", s->value);
+           m68k_set_irq_level(s->cpu, 0, 25);
            return s->value;
         case RTC_MX:
 	    qemu_log("via_read offset=0x%x\n", (int)offset);
@@ -159,6 +198,10 @@ static uint32_t timer_readl(void *opaque, hwaddr offset)
 	   qemu_log("via_read offset=0x%x\n", (int)offset);
 	   qemu_log("via_read value=%d\n", s->value);
            return s->is_dec;
+        case RTC_ST:
+	   qemu_log("via_read offset=0x%x\n", (int)offset);
+	   qemu_log("via_read value=%d\n", s->value);
+           return s->step;
     }
     return 0;
 }
@@ -180,30 +223,52 @@ static const MemoryRegionOps via_ops = {
     .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
+
 static void timer_interrupt(void * opaque)
 {
-    via_state *s = (via_state *)opaque;
-    s->is_dec = 1;
-    s->value += 10;
-    int64_t now = qemu_clock_get_ns(rtc_clock);
-    timer_mod(s->timer, now + get_ticks_per_sec());
-    qemu_log("Timer_mod value=%d\n", s->value);
+    via_state *s = (via_state *)opaque;    
+   
+    if(s->value >= s->mxvalue)
+    {
+        s->is_dec = 1;
+    } 
+    else if(s->value <= 0)
+    {
+        s->is_dec = 0;
+    }
 
+    if(s->is_dec==1) 
+         {
+             s->value = s->value - s->step;
+	     int64_t now = qemu_clock_get_ns(rtc_clock);
+   	     timer_mod(s->timer, now + get_ticks_per_sec());
+             qemu_log("Timer_mod value=%d\n", s->value);
+         }
+    else if(s->is_dec==0)
+	 {
+             s->value = s->value + s->step;  
+             int64_t now = qemu_clock_get_ns(rtc_clock);
+             timer_mod(s->timer, now + get_ticks_per_sec());
+             qemu_log("Timer_mod value=%d\n", s->value); 
+	 }	
 
+    
+
+   m68k_set_irq_level(s->cpu, 1, 25);
 }
 
 void StrDev_init(MemoryRegion *sysmem, uint32_t base, M68kCPU *cpu)
 {
     via_state *s;
-
     s = (via_state *)g_malloc0(sizeof(via_state));
-
     s->base = base;
     s->value = 0;
+    s->step = 1;
+    s->mxvalue = 10;
+    s->is_dec = 1;
     memory_region_init_io(&s->iomem, NULL, &via_ops, s, "StrDev via", 0x2000);
     memory_region_add_subregion(sysmem, base & TARGET_PAGE_MASK, &s->iomem);
     s->timer = timer_new_ns(rtc_clock, timer_interrupt, s);
-    //uint32_t ticks = 1;
     int64_t now = qemu_clock_get_ns(rtc_clock);
     timer_mod(s->timer, now + get_ticks_per_sec());
     s->cpu = cpu;
