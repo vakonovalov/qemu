@@ -34,6 +34,7 @@ enum
 };
 
 #define V_OVERLAY_MASK (1 << 4)
+#define MASK_B 1
 
 typedef struct {
     M68kCPU *cpu;
@@ -44,20 +45,19 @@ typedef struct {
     target_ulong base;
     /* registers */
     uint8_t regs[VIA_REGS];
+    uint8_t num;
+    uint8_t cmd;
 } via_state;
 
 static void via_set_regA(via_state *s, uint8_t val)
 {
     uint8_t old = s->regs[vBufA];
-
     /* Switch vOverlay bit */
     if ((old & V_OVERLAY_MASK) != (val & V_OVERLAY_MASK)) {
         if (val & V_OVERLAY_MASK) {
             /* map ROM and RAM */
-            memory_region_add_subregion_overlap(get_system_memory(),
-                                                0x0, &s->rom, 1);
-            memory_region_add_subregion_overlap(get_system_memory(),
-                                                0x600000, &s->ram, 1);
+            memory_region_add_subregion_overlap(get_system_memory(), 0x0, &s->rom, 1);
+            memory_region_add_subregion_overlap(get_system_memory(), 0x600000, &s->ram, 1);
             qemu_log("Map ROM at 0x0\n");
         } else {
             /* unmap ROM and RAM */
@@ -73,6 +73,57 @@ static void via_set_regA(via_state *s, uint8_t val)
     s->regs[vBufA] = val;
 }
 
+static void handl_cmd(via_state *s)
+{
+    switch(s->cmd)
+    {
+    case 0x01:
+    case 0x81:
+	printf("z0000001 Seconds register 0\n");
+	break;
+    case 0x05:
+    case 0x85:
+	printf("z0000101 Seconds register 1\n");
+	break;
+    case 0x09:
+    case 0x89:
+	printf("z0001001 Seconds register 2\n");
+	break;
+    case 0x0d:
+    case 0x8d:
+	printf("z0001101 Seconds register 3\n");
+	break;
+    case 0x31:
+	printf("Test register\n");
+	break;
+    case 0x35:
+	printf("Write-protect register\n");
+	break;
+    //default:
+        //if (s->cmd & 0x)
+    }
+    s->cmd = 0;
+}
+
+static void via_set_regB(via_state *s, uint8_t val)
+{
+    if ((val & 0x2) == 2)
+    {
+        s->cmd = s->cmd | ((val & 1) << (s->num));
+	if (s->num < 8) 
+	{
+	    (s->num)++;
+            if (s->num == 8)
+	    {
+		printf("int: %d\n", s->cmd);
+        	s->num = 0;
+		handl_cmd(s);
+	    }
+	} else qemu_log("ERROR NUM");
+    }
+    s->regs[vBufB] = val;
+}
+
 static void via_writeb(void *opaque, hwaddr offset,
                               uint32_t value)
 {
@@ -82,9 +133,15 @@ static void via_writeb(void *opaque, hwaddr offset,
         hw_error("Bad VIA write offset 0x%x", (int)offset);
     }
     qemu_log("via_write offset=0x%x value=0x%x\n", (int)offset, value);
+    		//char buf;
+    		//if ((value & 0x2) == 2) buf = (value & 0x2)*10; else buf = value & 0x1;
+    		if ((value & 0x2) == 2) printf("via_write offset=0x%x value= %d\n", (int)offset, (value & 0x1));
     switch (offset) {
     case vBufA:
         via_set_regA(s, value);
+        break;
+    case vBufB:
+        via_set_regB(s, value);
         break;
     }
 }
@@ -99,6 +156,7 @@ static uint32_t via_readb(void *opaque, hwaddr offset)
     }
     ret = s->regs[offset];
     qemu_log("via_read offset=0x%x val=0x%x\n", (int)offset, ret);
+    //printf("via_read offset=0x%x val=0x%x\n", (int)offset, ret);
     return ret;
 }
 
@@ -123,6 +181,7 @@ static void sy6522_reset(void *opaque)
     via_state *s = opaque;
     /* Init registers */
     via_set_regA(s, V_OVERLAY_MASK);
+    via_set_regB(s, 0);
 }
 
 void sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
@@ -134,6 +193,8 @@ void sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
 
     s->base = base;
     s->cpu = cpu;
+    s->num = 0;
+    s->cmd = 0;
     memory_region_init_io(&s->iomem, NULL, &via_ops, s,
                           "sy6522 via", 0x2000);
     memory_region_add_subregion(get_system_memory(),
