@@ -33,7 +33,7 @@ static void bia_writeb(void *opaque, hwaddr offset,
     if (offset > 0xF) {
         hw_error("Bad BIA write offset 0x%x", (int)offset);
     }
-    printf("bia_write offset=0x%x value=0x%x\n", (int)offset, value);
+    //printf("bia_write offset=0x%x value=0x%x\n", (int)offset, value);
     if (offset == 0x0)
     {
 	s->value = value;
@@ -51,7 +51,7 @@ static uint32_t bia_readb(void *opaque, hwaddr offset)
     if (offset > 0xF) {
         hw_error("Bad BIA read offset 0x%x", (int)offset);
     }
-    printf("bia_read offset=0x%x, %i\n", (int)offset, s->value);
+    //printf("bia_read offset=0x%x, %i\n", (int)offset, s->value);
     m68k_set_irq_level(s->cpu, 0, 0x64 >> 2);
     return s->value;
 }

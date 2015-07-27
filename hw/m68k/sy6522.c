@@ -34,6 +34,7 @@ enum
 };
 
 #define V_OVERLAY_MASK (1 << 4)
+#define MY_MASK (1 << 2)
 
 typedef struct {
     M68kCPU *cpu;
@@ -44,6 +45,8 @@ typedef struct {
     target_ulong base;
     /* registers */
     uint8_t regs[VIA_REGS];
+    uint8_t RWcount;
+    uint8_t cmd;
 } via_state;
 
 static void via_set_regA(via_state *s, uint8_t val)
@@ -73,6 +76,61 @@ static void via_set_regA(via_state *s, uint8_t val)
     s->regs[vBufA] = val;
 }
 
+static void cmdHandler(via_state *s)
+{
+   switch (s->cmd) {
+    case 0x81:
+        printf("1OOOOOO1 | Seconds register 0 \n");
+        break;
+    case 0x01:
+        printf("0OOOOOO1 | Seconds register 0 \n");
+        break;
+    case 0x85:
+        printf("1OOOO1O1 | Seconds register 1 \n");
+        break;
+    case 0x05:
+        printf("0OOOO1O1 | Seconds register 1 \n");
+        break;
+    case 0x89:
+        printf("1OOO10O1 | Seconds register 2 \n");
+        break;
+    case 0x09:
+        printf("0OOO10O1 | Seconds register 2 \n");
+        break;
+    case 0x8D:
+        printf("1OOO11O1 | Seconds register 3 \n");
+        break;
+    case 0x0D:
+        printf("0OOO11O1 | Seconds register 3 \n");
+        break;
+    default:
+        printf("Error \n");
+        break;
+    }
+}
+
+static void via_set_regB(via_state *s, uint8_t val)
+{
+    s->regs[vBufB] = val;
+    if (val & 0x4) {
+        if(s->RWcount != 0)
+        {
+            if (val & 0x2) {
+                s->cmd = s->cmd << 1;
+                s->cmd = s->cmd | (val & 0x1);
+                s->RWcount--;
+            }
+        }
+        else
+        {
+            printf("cmd: %i\n", s->cmd);
+            cmdHandler(s);
+            s->cmd = 0;
+            s->RWcount = 8;
+        }
+    }
+}
+
 static void via_writeb(void *opaque, hwaddr offset,
                               uint32_t value)
 {
@@ -81,10 +139,14 @@ static void via_writeb(void *opaque, hwaddr offset,
     if (offset >= VIA_REGS) {
         hw_error("Bad VIA write offset 0x%x", (int)offset);
     }
-    qemu_log("via_write offset=0x%x value=0x%x\n", (int)offset, value);
+    printf("via_write offset=0x%x value=0x%x\n", (int)offset, value);
+    printf("bit2=0x%i bit1=0x%i bit0=0x%i\n", value & 0x04, value & 0x02, value & 0x01);   
     switch (offset) {
     case vBufA:
         via_set_regA(s, value);
+        break;
+    case vBufB:
+        via_set_regB(s, value);
         break;
     }
 }
@@ -97,8 +159,8 @@ static uint32_t via_readb(void *opaque, hwaddr offset)
     if (offset >= VIA_REGS) {
         hw_error("Bad VIA read offset 0x%x", (int)offset);
     }
-    ret = s->regs[offset];
-    qemu_log("via_read offset=0x%x val=0x%x\n", (int)offset, ret);
+    ret = s->regs[offset];       
+    //printf("via_read offset=0x%x val=0x%x\n", (int)offset, ret);
     return ret;
 }
 
@@ -123,6 +185,8 @@ static void sy6522_reset(void *opaque)
     via_state *s = opaque;
     /* Init registers */
     via_set_regA(s, V_OVERLAY_MASK);
+    via_set_regB(s, 0);
+    s->RWcount = 8;
 }
 
 void sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
