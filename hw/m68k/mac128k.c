@@ -121,7 +121,7 @@ static void mac128k_init(MachineState *machine)
     sy6522_init(rom, ram, VIA_BASE_ADDR, cpu);
 
 /////////////////////////////////
-    true_master_crazy_code_init(address_space_mem, 0x800000, cpu);
+//    true_master_crazy_code_init(address_space_mem, 0x800000, cpu);
 /////////////////////////////////
 
     /* Display */

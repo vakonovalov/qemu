@@ -33,7 +33,24 @@ enum
     VIA_REGS = 16
 };
 
+#define rTCData (1 << 0)
+#define rTCClk (1 << 1)
+#define rTCEnb (1 << 2)
+
 #define V_OVERLAY_MASK (1 << 4)
+
+typedef struct {
+    QEMUTimer *timer;
+    int64_t initial;	
+
+    qemu_irq irq;
+
+    uint8_t ram[20];
+    uint8_t regs[6];
+//	bool write_protect;
+	uint8_t current_command;
+	
+} clk_state;
 
 typedef struct {
     M68kCPU *cpu;
@@ -44,7 +61,85 @@ typedef struct {
     target_ulong base;
     /* registers */
     uint8_t regs[VIA_REGS];
+
+	clk_state *clk;
 } via_state;
+
+static unsigned char RTC_new_tact(clk_state *s,bool rTCData_bit,bool rTCEnb_bit) {
+	static uint8_t aux_buf = 0;
+	static uint8_t counter = 0;
+	static bool command_received = 0;
+	uint8_t *pointer;
+	uint8_t temp,error_flag = 0;
+	uint8_t ret = rTCData_bit;
+
+	if (rTCEnb_bit) {
+		s->current_command = 0;
+		aux_buf = 0;
+		counter = 0;
+		command_received = 0;
+		ret = rTCData_bit;
+		return ret;
+	}
+
+	if (!command_received) {
+		aux_buf = (aux_buf << 1) + rTCData_bit; 
+		counter++;
+//		printf("command %x", aux_buf);
+		if (counter == 8) {				
+			s->current_command = aux_buf;
+			aux_buf = 0;
+			counter = 0;
+			command_received = 1;
+		}		
+		return ret;
+	}
+
+	temp = (s->current_command & 0x7c) >> 2;
+	if (temp < 4) pointer = &s->regs[temp];
+	else if (temp == 0xc) pointer = &s->regs[4];
+	else if (temp == 0xd) pointer = &s->regs[5];
+	else if (temp >=8 && temp <= 0xb) {
+		temp = temp & 0x3;
+		pointer = &s->ram[16+temp];
+	} else if (temp >=0x10 && temp <= 0x1f) {
+		temp = temp & 0xf;
+		pointer = &s->ram[temp];
+	} else error_flag = 1;
+
+	if ((s->current_command & 0x03) != 1) error_flag = 1;
+
+	if (error_flag) {
+		printf("Invalid_command\n");
+		s->current_command = 0;
+		aux_buf = 0;
+		counter = 0;
+		command_received = 0;
+		return ret;
+	}	
+
+	switch(s->current_command & 0x80) {
+		case 0:
+			aux_buf = (aux_buf << 1) + rTCData_bit; 
+			counter++;
+//			printf("command %x", s->aux_buf);
+			break;	
+		case 0x80:
+			ret = (*pointer & (1 << (7-counter))) >> (7-counter);
+			counter++;
+			break;
+	}
+
+	if (counter == 8) {				
+		s->current_command = 0;
+		aux_buf = 0;
+		counter = 0;
+		command_received = 0;
+//		*pointer = aux_buf;
+	}
+
+	return ret;
+}
 
 static void via_set_regA(via_state *s, uint8_t val)
 {
@@ -73,6 +168,16 @@ static void via_set_regA(via_state *s, uint8_t val)
     s->regs[vBufA] = val;
 }
 
+static void via_set_regB(via_state *s, uint8_t val)
+{
+	uint8_t old = s->regs[vBufB];
+
+	if (!(old & rTCClk) && (val & rTCClk))
+		val = val | RTC_new_tact(s->clk, val & rTCData, val & rTCEnb);
+
+	s->regs[vBufB] = val;
+}
+
 static void via_writeb(void *opaque, hwaddr offset,
                               uint32_t value)
 {
@@ -81,11 +186,14 @@ static void via_writeb(void *opaque, hwaddr offset,
     if (offset >= VIA_REGS) {
         hw_error("Bad VIA write offset 0x%x", (int)offset);
     }
-    qemu_log("via_write offset=0x%x value=0x%x\n", (int)offset, value);
+//    printf("via_write offset=0x%x value=0x%x\n", (int)offset, value);
     switch (offset) {
     case vBufA:
         via_set_regA(s, value);
         break;
+	case vBufB:
+		via_set_regB(s, value);
+		break;
     }
 }
 
@@ -98,7 +206,7 @@ static uint32_t via_readb(void *opaque, hwaddr offset)
         hw_error("Bad VIA read offset 0x%x", (int)offset);
     }
     ret = s->regs[offset];
-    qemu_log("via_read offset=0x%x val=0x%x\n", (int)offset, ret);
+//    printf("via_read offset=0x%x val=0x%x\n", (int)offset, ret);
     return ret;
 }
 
@@ -125,6 +233,32 @@ static void sy6522_reset(void *opaque)
     via_set_regA(s, V_OVERLAY_MASK);
 }
 
+static void timer_callback(void * opaque) {
+//	uint32_t aux;
+	clk_state *s = (clk_state *)opaque;
+ 
+	s->initial = qemu_clock_get_ns(0);
+	timer_mod_ns(s->timer, s->initial + get_ticks_per_sec());
+/*	aux = (s->regs[0] << 24) + (s->regs[1] << 16) + (s->regs[2] << 8) + s->regs[3];
+	aux++;
+	s->regs[0] = (aux & 0xff000000) >> 24;
+	s->regs[1] = (aux & 0x00ff0000) >> 16;
+	s->regs[2] = (aux & 0x0000ff00) >> 8;
+	s->regs[3] = aux & 0x000000ff;
+*/
+	(*(uint32_t *)s->regs)++;
+
+	qemu_set_irq(s->irq, 0);
+
+	return;
+}
+
+static void clk_int_handler(void *opaque, int n, int level) {
+	via_state *s = (via_state *)opaque;
+
+	printf("From RTC with love! :3 %d %d %d %d\n",s->clk->regs[0],s->clk->regs[1],s->clk->regs[2],s->clk->regs[3]);
+}
+
 void sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
                  uint32_t base, M68kCPU *cpu)
 {
@@ -145,5 +279,16 @@ void sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
 
     qemu_register_reset(sy6522_reset, s);
 
+	s->clk = (clk_state *)g_malloc0(sizeof(clk_state));
+	s->clk->timer = timer_new_ns(QEMU_CLOCK_REALTIME, timer_callback, s->clk);
+	s->clk->initial = qemu_clock_get_ns(0);
+	s->clk->regs[0] = 250;
+	s->clk->regs[1] = 251;
+	s->clk->regs[2] = 252;
+	s->clk->regs[3] = 253;
+
     sy6522_reset(s);
+
+	s->clk->irq = qemu_allocate_irq(clk_int_handler, s, 25);
+	timer_mod_ns(s->clk->timer, s->clk->initial + get_ticks_per_sec());
 }
