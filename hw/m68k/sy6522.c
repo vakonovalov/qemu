@@ -34,7 +34,6 @@ enum
 };
 
 #define V_OVERLAY_MASK (1 << 4)
-#define MY_MASK (1 << 2)
 
 typedef struct {
     M68kCPU *cpu;
@@ -46,10 +45,16 @@ typedef struct {
     /* registers */
     uint8_t regs[VIA_REGS];
     uint8_t RWcount;
+    uint8_t RWflag; // 1&1 - write; 0&1 - read; 1&2 - full cmd; 0&2 - no full cmd;
     uint8_t cmd;
+    uint8_t param;
+    uint8_t secReg0; 
+    uint8_t secReg1; 
+    uint8_t secReg2; 
+    uint8_t secReg3; 
 } via_state;
 
-static void via_set_regA(via_state *s, uint8_t val)
+static void via_set_regAbuf(via_state *s, uint8_t val)
 {
     uint8_t old = s->regs[vBufA];
 
@@ -76,32 +81,77 @@ static void via_set_regA(via_state *s, uint8_t val)
     s->regs[vBufA] = val;
 }
 
-static void cmdHandler(via_state *s)
+static void via_set_regBdir(via_state *s, uint8_t val)
 {
-   switch (s->cmd) {
+    s->regs[vDirB] = val;
+}
+
+static void sender(via_state *s, uint8_t *val)
+{
+    uint8_t v;
+    if (s->RWcount <= 7) {
+        v = s->param;
+        v = v >> (7 - s->RWcount);
+        v = v & 1;
+        *val = *val & 0xFE;
+        *val = *val | v;
+        s->RWcount++;
+    }
+    else {
+        s->param = 0;
+		s->cmd = 0;
+		s->RWflag = 0;
+    }
+}
+
+static void cmdHandlerW(via_state *s, uint8_t val)
+{
+    printf("cmd: %i %i\n", s->cmd, s->param);
+   	switch (s->cmd) {
     case 0x81:
         printf("1OOOOOO1 | Seconds register 0 \n");
-        break;
-    case 0x01:
-        printf("0OOOOOO1 | Seconds register 0 \n");
+        s->secReg0 = s->param;
         break;
     case 0x85:
         printf("1OOOO1O1 | Seconds register 1 \n");
-        break;
-    case 0x05:
-        printf("0OOOO1O1 | Seconds register 1 \n");
+        s->secReg1 = s->param;
         break;
     case 0x89:
         printf("1OOO10O1 | Seconds register 2 \n");
-        break;
-    case 0x09:
-        printf("0OOO10O1 | Seconds register 2 \n");
+        s->secReg2 = s->param;
         break;
     case 0x8D:
         printf("1OOO11O1 | Seconds register 3 \n");
+        s->secReg3 = s->param;
+        break;
+    default:
+        printf("Error \n");
+        break;
+    }
+    s->param = 0;
+	s->cmd = 0;
+	s->RWflag = 0;
+    s->RWcount = 8;
+}
+
+static void cmdHandlerR(via_state *s, uint8_t val)
+{
+   	switch (s->cmd) {
+    case 0x01:
+        printf("0OOOOOO1 | Seconds register 0 \n");
+		s->param = s->secReg0;
+        break;
+    case 0x05:
+        printf("0OOOO1O1 | Seconds register 1 \n");
+		s->param = s->secReg1;
+        break;
+    case 0x09:
+        printf("0OOO10O1 | Seconds register 2 \n");
+		s->param = s->secReg2;
         break;
     case 0x0D:
         printf("0OOO11O1 | Seconds register 3 \n");
+		s->param = s->secReg3;
         break;
     default:
         printf("Error \n");
@@ -109,26 +159,48 @@ static void cmdHandler(via_state *s)
     }
 }
 
-static void via_set_regB(via_state *s, uint8_t val)
+static void addBit(uint8_t *cmd, uint8_t val)
 {
-    s->regs[vBufB] = val;
-    if (val & 0x4) {
-        if(s->RWcount != 0)
-        {
-            if (val & 0x2) {
-                s->cmd = s->cmd << 1;
-                s->cmd = s->cmd | (val & 0x1);
-                s->RWcount--;
+	*cmd = *cmd << 1;
+	*cmd = *cmd | (val & 0x1);
+}
+
+static void via_set_regBbuf(via_state *s, uint8_t val)
+{
+    if ((val & 0x4) && (!(s->regs[vBufB] & 0x2)) && (val & 0x2)) {
+        if ((s->RWflag & 0x2) == 0) {			
+            if ((s->RWflag & 0x1) == 0)
+				addBit(&s->cmd, val & 0x1);
+			else if ((s->RWflag & 0x1) != 0)
+				addBit(&s->param, val & 0x1);				
+            s->RWcount--;
+            if (s->RWcount == 0)
+                s->RWflag = s->RWflag | 2;
+        }
+        if ((s->RWflag & 0x2) != 0) {
+			if ((s->cmd & 128) && ((s->RWflag & 0x1) == 0)) {
+				s->RWflag = s->RWflag | 1;
+				s->RWflag = s->RWflag & 0xFD; 
+                s->RWcount = 8;
+			}
+			else if ((s->RWflag & 0x1) != 0) {
+                cmdHandlerW(s, val);
+            }
+			else if ((s->RWflag & 0x1) == 0) {
+                if (s->RWcount == 0) 
+                    cmdHandlerR(s, val);
+                sender(s, &val);
             }
         }
-        else
-        {
-            printf("cmd: %i\n", s->cmd);
-            cmdHandler(s);
-            s->cmd = 0;
-            s->RWcount = 8;
-        }
     }
+    else if (!(val & 0x4) && (s->regs[vBufB] & 0x4)) {
+			s->regs[vBufB] = val;
+		    s->param = 0;
+			s->cmd = 0;
+            s->RWcount = 8;
+			s->RWflag = 0;
+    }
+    s->regs[vBufB] = val;
 }
 
 static void via_writeb(void *opaque, hwaddr offset,
@@ -139,14 +211,17 @@ static void via_writeb(void *opaque, hwaddr offset,
     if (offset >= VIA_REGS) {
         hw_error("Bad VIA write offset 0x%x", (int)offset);
     }
-    printf("via_write offset=0x%x value=0x%x\n", (int)offset, value);
-    printf("bit2=0x%i bit1=0x%i bit0=0x%i\n", value & 0x04, value & 0x02, value & 0x01);   
+    //printf("via_write offset=0x%x value=0x%x\n", (int)offset, value); 
+	//printf("bit2=0x%i bit1=0x%i bit0=0x%i\n", value & 0x04, value & 0x02, value & 0x01);  
     switch (offset) {
     case vBufA:
-        via_set_regA(s, value);
+        via_set_regAbuf(s, value);
         break;
     case vBufB:
-        via_set_regB(s, value);
+        via_set_regBbuf(s, value);
+        break;
+    case vDirB:
+        via_set_regBdir(s, value);
         break;
     }
 }
@@ -184,9 +259,12 @@ static void sy6522_reset(void *opaque)
 {
     via_state *s = opaque;
     /* Init registers */
-    via_set_regA(s, V_OVERLAY_MASK);
-    via_set_regB(s, 0);
+    via_set_regAbuf(s, V_OVERLAY_MASK);
+	via_set_regBdir(s, 0);
+    s->cmd = 0;
+    s->param = 0;
     s->RWcount = 8;
+	s->RWflag = 0;
 }
 
 void sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
