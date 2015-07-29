@@ -46,6 +46,7 @@ typedef struct {
     uint8_t RAM[20];
     uint8_t ROM[20];
     uint8_t cmd;
+    uint8_t data;
 } RTC_clock;
 
 typedef struct {
@@ -87,25 +88,84 @@ static void via_set_regA(via_state *s, uint8_t val)
     s->regs[vBufA] = val;
 }
 
-static void RTC_clock_tics(RTC_clock *s)
+static void RTC_clock_tics(RTC_clock *s, uint8_t val)
 {
-    printf("HERE\n");
+    static bool command = 0;
+    static uint8_t bits = 0;
+    static bool flag = 0;
+    static uint8_t high_bit;
+    if (!command)
+    {
+        s->cmd = s->cmd << 1;
+        s->cmd = s->cmd | (val & 1);
+        bits++;
+        if (bits == 8) 
+        {
+            bits = 0;
+            flag = 1;
+            command = 1;
+            high_bit = s->cmd & 0x80;
+            s->cmd = s->cmd & 0x7f;
+            printf("RTC = %d\n", s->cmd);
+        } 
+       // printf("RTC = %d\n", s->cmd & 1);
+    }
+  
+    if (flag)
+    {
+        switch (s->cmd) 
+        {
+            case 0x1:
+                if (high_bit)
+                    printf("read1\n");
+                else
+                    printf("write1\n");
+                break;
+            case 0x5:
+                if(high_bit)
+                    printf("read2\n");
+                else
+                     printf("write2\n");
+                     if (!bits) 
+                     {
+                         
+                         bits++;
+                         break;
+                     }
+                     s->data = s->data << 1;
+                     s->data = s->data | (val & 1);
+                    // printf("DATA = %d\n", s->data &1);
+                     bits++;
+                     if (bits > 8)
+                     { 
+                         printf("DATA = %d\n", s->data);
+                         bits = 0;
+                         command = 0;
+                         flag = 0;
+                     }                    
+                break;
+            case 0x9:
+                if(high_bit)
+                    printf("read3\n");
+                else
+                    printf("write3\n");
+                break;
+        }
+    }       
 }
 
 
 static void set_regB(via_state *s, uint8_t val)
 {
    uint8_t old = s->regs[vBufB];
-   static uint8_t bits=0;
-   if(!(old & rTCClk) && (val & rTCClk))
-   {
-        if(!s->clk->cmd) s->clk->cmd = val & 1;
-        
-        s->clk->cmd = val & 1;
-        bits++;
-        printf("reg = %d\n", s->clk->cmd);
-        if(bits == 8)
-            RTC_clock_tics(s->clk);
+  // static uint8_t bits=0;
+   if (!(old & rTCClk) && (val & rTCClk))
+   {  
+        //s->clk->cmd = s->clk->cmd << 1;
+        //s->clk->cmd = s->clk->cmd | (val & 1);
+       // bits++;
+        //if (bits == 8)
+        RTC_clock_tics(s->clk, val);
         tlb_flush(CPU(s->cpu), 1);
     }
     s->regs[vBufB] = val;
