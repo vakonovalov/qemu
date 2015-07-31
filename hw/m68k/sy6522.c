@@ -33,9 +33,9 @@ enum
     VIA_REGS = 16
 };
 
-#define rTCData (1 << 0)
-#define rTCClk (1 << 1)
-#define rTCEnb (1 << 2)
+#define rTCData_MASK (1 << 0)
+#define rTCClk_MASK (1 << 1)
+#define rTCEnb_MASK (1 << 2)
 
 #define V_OVERLAY_MASK (1 << 4)
 
@@ -65,11 +65,12 @@ typedef struct {
 	clk_state *clk;
 } via_state;
 
-static unsigned char RTC_new_tact(clk_state *s,bool rTCData_bit,bool rTCEnb_bit) {
+static unsigned char RTC_new_tact(clk_state *s,bool rTCData_bit,bool rTCEnb_bit) 
+{
 	static uint8_t aux_buf = 0;
 	static uint8_t counter = 0;
 	static bool command_received = 0;
-	uint8_t *pointer;
+	uint8_t *pointer = &aux_buf;
 	uint8_t temp,error_flag = 0;
 	uint8_t ret = rTCData_bit;
 
@@ -82,18 +83,19 @@ static unsigned char RTC_new_tact(clk_state *s,bool rTCData_bit,bool rTCEnb_bit)
 		return ret;
 	}
 
-	if (!command_received) {
-		aux_buf = (aux_buf << 1) + rTCData_bit; 
-		counter++;
-//		printf("command %x", aux_buf);
-		if (counter == 8) {				
-			s->current_command = aux_buf;
-			aux_buf = 0;
-			counter = 0;
-			command_received = 1;
-		}		
-		return ret;
+	switch(s->current_command & 0x80) {
+		case 0:
+			aux_buf = (aux_buf << 1) | rTCData_bit; 
+//			printf("command %x", s->aux_buf);
+			break;	
+		case 0x80:
+			ret = (aux_buf & (1 << (7-counter))) >> (7-counter);
+			break;
 	}
+    counter++;
+    if (counter < 8) return ret;
+	
+	if (!command_received) s->current_command = aux_buf;
 
 	temp = (s->current_command & 0x7c) >> 2;
 	if (temp < 4) pointer = &s->regs[temp];
@@ -109,34 +111,26 @@ static unsigned char RTC_new_tact(clk_state *s,bool rTCData_bit,bool rTCEnb_bit)
 
 	if ((s->current_command & 0x03) != 1) error_flag = 1;
 
-	if (error_flag) {
-		printf("Invalid_command\n");
-		s->current_command = 0;
-		aux_buf = 0;
-		counter = 0;
-		command_received = 0;
-		return ret;
-	}	
-
-	switch(s->current_command & 0x80) {
-		case 0:
-			aux_buf = (aux_buf << 1) + rTCData_bit; 
-			counter++;
-//			printf("command %x", s->aux_buf);
-			break;	
-		case 0x80:
-			ret = (*pointer & (1 << (7-counter))) >> (7-counter);
-			counter++;
-			break;
-	}
-
-	if (counter == 8) {				
-		s->current_command = 0;
-		aux_buf = 0;
-		counter = 0;
-		command_received = 0;
-//		*pointer = aux_buf;
-	}
+	if (command_received) s->current_command = 0;
+    else {
+        switch(s->current_command & 0x80) {
+            case 0:
+                *pointer = aux_buf;
+    //          printf("command %x", s->aux_buf);
+                break;  
+            case 0x80:
+                aux_buf = *pointer;
+                break;
+        }
+    }
+    
+    command_received ^= 1;
+	counter = 0;
+    
+    if (error_flag) {
+        printf("Invalid_command\n");
+        command_received = 0;
+    }   
 
 	return ret;
 }
@@ -172,8 +166,8 @@ static void via_set_regB(via_state *s, uint8_t val)
 {
 	uint8_t old = s->regs[vBufB];
 
-	if (!(old & rTCClk) && (val & rTCClk))
-		val = val | RTC_new_tact(s->clk, val & rTCData, val & rTCEnb);
+	if (!(old & rTCClk_MASK) && (val & rTCClk_MASK))
+		val = (val & 0xfe) | RTC_new_tact(s->clk, val & rTCData_MASK, val & rTCEnb_MASK);
 
 	s->regs[vBufB] = val;
 }
@@ -235,20 +229,23 @@ static void sy6522_reset(void *opaque)
 
 static void timer_callback(void * opaque) {
 //	uint32_t aux;
+
 	clk_state *s = (clk_state *)opaque;
  
 	s->initial = qemu_clock_get_ns(0);
 	timer_mod_ns(s->timer, s->initial + get_ticks_per_sec());
-/*	aux = (s->regs[0] << 24) + (s->regs[1] << 16) + (s->regs[2] << 8) + s->regs[3];
+/*
+	aux = (s->regs[3] << 24) + (s->regs[2] << 16) + (s->regs[1] << 8) + s->regs[0];
 	aux++;
-	s->regs[0] = (aux & 0xff000000) >> 24;
-	s->regs[1] = (aux & 0x00ff0000) >> 16;
-	s->regs[2] = (aux & 0x0000ff00) >> 8;
-	s->regs[3] = aux & 0x000000ff;
+	s->regs[3] = (aux & 0xff000000) >> 24;
+	s->regs[2] = (aux & 0x00ff0000) >> 16;
+	s->regs[1] = (aux & 0x0000ff00) >> 8;
+	s->regs[0] = aux & 0x000000ff;
 */
+printf("From RTC with love! :3 %d %d %d %d\n",s->regs[0],s->regs[1],s->regs[2],s->regs[3]);
 	(*(uint32_t *)s->regs)++;
-
-	qemu_set_irq(s->irq, 0);
+printf("From RTC with love! :3 %d %d %d %d\n",s->regs[0],s->regs[1],s->regs[2],s->regs[3]);
+//	qemu_set_irq(s->irq, 0);
 
 	return;
 }
