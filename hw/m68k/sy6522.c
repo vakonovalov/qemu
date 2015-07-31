@@ -52,6 +52,11 @@ typedef struct {
     uint8_t secReg1; 
     uint8_t secReg2; 
     uint8_t secReg3; 
+    uint8_t testReg;
+    uint8_t wrPrReg;
+    uint8_t rTCbuff[20];
+
+    QEMUTimer *timer;
 } via_state;
 
 static void via_set_regAbuf(via_state *s, uint8_t val)
@@ -89,72 +94,96 @@ static void via_set_regBdir(via_state *s, uint8_t val)
 static void sender(via_state *s, uint8_t *val)
 {
     uint8_t v;
-    if (s->RWcount <= 7) {
-        v = s->param;
-        v = v >> (7 - s->RWcount);
-        v = v & 1;
-        *val = *val & 0xFE;
-        *val = *val | v;
-        s->RWcount++;
-    }
-    else {
-        s->param = 0;
-		s->cmd = 0;
-		s->RWflag = 0;
-    }
+    v = s->param;
+    v = v >> (7 - s->RWcount);
+    v = v & 1;
+    *val = *val & 0xFE;
+    *val = *val | v;
+    s->RWcount++;
+}
+
+static void reset_parametrs(via_state *s)
+{
+    s->param = 0;
+	s->cmd = 0;
+    s->RWflag = 0;
+    s->RWcount = 8;
 }
 
 static void cmdHandlerW(via_state *s, uint8_t val)
 {
-    printf("cmd: %i %i\n", s->cmd, s->param);
+    //printf("cmd: %i %i\n", s->cmd, s->param);
    	switch (s->cmd) {
-    case 0x81:
-        printf("1OOOOOO1 | Seconds register 0 \n");
+    case 0x01:
+        printf("0OOOOOO1 | Seconds register 0 \n");
         s->secReg0 = s->param;
         break;
-    case 0x85:
-        printf("1OOOO1O1 | Seconds register 1 \n");
+    case 0x05:
+        printf("0OOOO1O1 | Seconds register 1 \n");
         s->secReg1 = s->param;
         break;
-    case 0x89:
-        printf("1OOO10O1 | Seconds register 2 \n");
+    case 0x09:
+        printf("0OOO10O1 | Seconds register 2 \n");
         s->secReg2 = s->param;
         break;
-    case 0x8D:
-        printf("1OOO11O1 | Seconds register 3 \n");
+    case 0x0D:
+        printf("0OOO11O1 | Seconds register 3 \n");
         s->secReg3 = s->param;
         break;
-    default:
-        printf("Error \n");
+    case 0x31:
+        printf("00110001 | Test register \n");
+        s->testReg = s->param;
+        break;  
+    case 0x35:
+        printf("00110101 | Write-protect register  \n");
+        s->wrPrReg = s->param;
+        break;
+    default: 
+        if ((s->cmd >= 0x41) && (s->cmd <= 0x7D)) {
+            printf("01aaaaO1 | RAM address 1OOaa ($1%x)\n", (s->cmd >> 2) - (0x41 >> 2));
+            s->rTCbuff[(s->cmd >> 2) - (0x41 >> 2)] = s->param;
+        }
+        else if ((s->cmd >= 0x21) && (s->cmd <= 0x2D)) {
+            printf("0O1OaaO1 | RAM address Oaaaa ($0%x)\n", (s->cmd >> 2) - (0x21 >> 2));
+            s->rTCbuff[16 + (s->cmd >> 2) - (0x21 >> 2)] = s->param;
+        }
+        else
+            printf("Error: Unknown command\n");
         break;
     }
-    s->param = 0;
-	s->cmd = 0;
-	s->RWflag = 0;
-    s->RWcount = 8;
 }
 
 static void cmdHandlerR(via_state *s, uint8_t val)
 {
+    //printf("cmd: %i %i\n", s->cmd, s->param);
    	switch (s->cmd) {
-    case 0x01:
-        printf("0OOOOOO1 | Seconds register 0 \n");
+    case 0x81:
+        printf("1OOOOOO1 | Seconds register 0 \n");
 		s->param = s->secReg0;
         break;
-    case 0x05:
-        printf("0OOOO1O1 | Seconds register 1 \n");
+    case 0x85:
+        printf("1OOOO1O1 | Seconds register 1 \n");
 		s->param = s->secReg1;
         break;
-    case 0x09:
-        printf("0OOO10O1 | Seconds register 2 \n");
+    case 0x89:
+        printf("1OOO10O1 | Seconds register 2 \n");
 		s->param = s->secReg2;
         break;
-    case 0x0D:
-        printf("0OOO11O1 | Seconds register 3 \n");
+    case 0x8D:
+        printf("1OOO11O1 | Seconds register 3 \n");
 		s->param = s->secReg3;
         break;
-    default:
-        printf("Error \n");
+    default: 
+        if ((s->cmd >= 0xC1) && (s->cmd <= 0xFD)) {
+            printf("11aaaaO1 | RAM address 1OOaa ($1%x)\n", (s->cmd >> 2) - (0xC1 >> 2));
+            s->param = s->rTCbuff[(s->cmd >> 2) - (0xC1 >> 2)];
+        }
+        else if ((s->cmd >= 0xA1) && (s->cmd <= 0xAD)) {
+            printf("1O1OaaO1 | RAM address Oaaaa ($0%x)\n", (s->cmd >> 2) - (0xA1 >> 2));
+            s->param = s->rTCbuff[16 + (s->cmd >> 2) - (0xA1 >> 2)];
+        }
+        else
+            printf("Error: Unknown command\n");
         break;
     }
 }
@@ -167,8 +196,8 @@ static void addBit(uint8_t *cmd, uint8_t val)
 
 static void via_set_regBbuf(via_state *s, uint8_t val)
 {
-    if ((val & 0x4) && (!(s->regs[vBufB] & 0x2)) && (val & 0x2)) {
-        if ((s->RWflag & 0x2) == 0) {			
+    if (!(val & 0x4) && (!(s->regs[vBufB] & 0x2)) && (val & 0x2)) {
+        if ((s->RWflag & 0x2) == 0) { //read cmd/parameter; cmd/parameter isn't full	
             if ((s->RWflag & 0x1) == 0)
 				addBit(&s->cmd, val & 0x1);
 			else if ((s->RWflag & 0x1) != 0)
@@ -177,28 +206,30 @@ static void via_set_regBbuf(via_state *s, uint8_t val)
             if (s->RWcount == 0)
                 s->RWflag = s->RWflag | 2;
         }
-        if ((s->RWflag & 0x2) != 0) {
-			if ((s->cmd & 128) && ((s->RWflag & 0x1) == 0)) {
+        if ((s->RWflag & 0x2) != 0) {   //cmd/parameter is full
+			if (!(s->cmd & 128) && ((s->RWflag & 0x1) == 0)) { //check cmd on "write"; go to read parameter
 				s->RWflag = s->RWflag | 1;
 				s->RWflag = s->RWflag & 0xFD; 
                 s->RWcount = 8;
 			}
-			else if ((s->RWflag & 0x1) != 0) {
+			else if ((s->RWflag & 0x1) != 0) { //check full cmd on "write"
                 cmdHandlerW(s, val);
+                reset_parametrs(s);
             }
-			else if ((s->RWflag & 0x1) == 0) {
+			else if ((s->RWflag & 0x1) == 0) { //check full cmd on "read"
                 if (s->RWcount == 0) 
                     cmdHandlerR(s, val);
                 sender(s, &val);
+                if (s->RWcount > 8) {
+                    reset_parametrs(s);
+                    m68k_set_irq_level(s->cpu, 0, 0x64 >> 2);
+                }
             }
         }
     }
-    else if (!(val & 0x4) && (s->regs[vBufB] & 0x4)) {
+    else if ((val & 0x4) && !(s->regs[vBufB] & 0x4)) { 
 			s->regs[vBufB] = val;
-		    s->param = 0;
-			s->cmd = 0;
-            s->RWcount = 8;
-			s->RWflag = 0;
+            reset_parametrs(s);
     }
     s->regs[vBufB] = val;
 }
@@ -267,6 +298,24 @@ static void sy6522_reset(void *opaque)
 	s->RWflag = 0;
 }
 
+static void interrupt(void * opaque)
+{
+    via_state *s = opaque;
+    timer_mod_ns(s->timer, qemu_clock_get_ns(QEMU_CLOCK_REALTIME) + get_ticks_per_sec());  
+    if (s->secReg0 == 0xFF) {
+        if (s->secReg1 == 0xFF) {
+            if (s->secReg2 == 0xFF) {
+                s->secReg3++;
+            }
+            s->secReg2++;
+        }
+        s->secReg1++;
+    }
+    s->secReg0++;
+    //printf("%i %i %i %i\n", s->secReg3, s->secReg2, s->secReg1, s->secReg0);
+	m68k_set_irq_level(s->cpu, 1, 0x64 >> 2);  
+}
+
 void sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
                  uint32_t base, M68kCPU *cpu)
 {
@@ -286,6 +335,12 @@ void sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
     memory_region_init_alias(&s->ram, NULL, "RAM overlay", ram, 0x0, 0x20000);
 
     qemu_register_reset(sy6522_reset, s);
-
     sy6522_reset(s);
+
+    s->secReg0 = 0; 
+    s->secReg1 = 0;
+    s->secReg2 = 0;
+    s->secReg3 = 0;
+    s->timer = timer_new_ms(QEMU_CLOCK_REALTIME, interrupt, s);
+    timer_mod_ns(s->timer, qemu_clock_get_ns(QEMU_CLOCK_REALTIME) + get_ticks_per_sec());
 }

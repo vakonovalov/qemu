@@ -35,23 +35,38 @@ DF DC.B %00000000, %00111100, %00100000, %00100000, %00111000, %00100000, %00100
 
  START: 
     move.l #$610000, sp
-
-    bset #rTCEnb, vBase+vBufB
-    move.b #%10000001, d0
-    jsr SEND
-    move.b #%10101010, d0
-    jsr SEND
-	move.b #%00000001, d0
-    jsr SEND
-    jsr RECEIVE
+    *move.l #HANDLER, $64
 
     bclr #rTCEnb, vBase+vBufB
+    move.b #%01000101, d0
+    jsr SEND
+    move.b #%11111111, d0
+    jsr SEND
+
+	move.b #%11000101, d0
+    jsr SEND
+    jsr RECEIVE
     move.l #28, d2  
     move.l  #$1A700, a0
     jsr PRINT
+
+    *READ:
+    *stop #$2000
+    *bra READ
+
+    bset #rTCEnb, vBase+vBufB
      
     END_LABEL:
     bra END_LABEL
+
+HANDLER:
+	move.b #%00000001, d0
+    jsr SEND
+    jsr RECEIVE
+    move.l #28, d2  
+    move.l  #$1A700, a0
+    jsr PRINT
+    rte
    
  SEND:
     move.b #7, d2
@@ -108,6 +123,20 @@ CHECK:
     rts
         
  END    START
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
