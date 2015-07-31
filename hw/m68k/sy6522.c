@@ -36,6 +36,7 @@ enum
 #define V_OVERLAY_MASK (1 << 4)
 #define rTCClk  (1 << 1)
 #define rTCData (1 << 0)
+#define rTCEnable (1 << 2)
 
 typedef struct {
     uint8_t seconds1;
@@ -44,9 +45,13 @@ typedef struct {
     uint8_t test;
     uint8_t write_protect;
     uint8_t RAM[20];
-    uint8_t ROM[20];
     uint8_t cmd;
     uint8_t data;
+    bool command;
+    uint8_t bits;
+    uint8_t count;
+    bool flag;
+    uint8_t high_bit;
 } RTC_clock;
 
 typedef struct {
@@ -88,85 +93,91 @@ static void via_set_regA(via_state *s, uint8_t val)
     s->regs[vBufA] = val;
 }
 
-static void RTC_clock_tics(RTC_clock *s, uint8_t val)
+static uint8_t RTC_clock_tics(RTC_clock *s, uint8_t val)
 {
-    static bool command = 0;
-    static uint8_t bits = 0;
-    static bool flag = 0;
-    static uint8_t high_bit;
-    if (!command)
+    
+    if (val & rTCEnable) 
+    {
+         s->data = 0;
+         s->command = 0;
+         s->flag = 0;
+         s->command = 0;
+         s->bits = 0;
+    }
+    if (!s->command)
     {
         s->cmd = s->cmd << 1;
         s->cmd = s->cmd | (val & 1);
-        bits++;
-        if (bits == 8) 
+        s->bits++;
+        if (s->bits == 8) 
         {
-            bits = 0;
-            flag = 1;
-            command = 1;
-            high_bit = s->cmd & 0x80;
+            s->bits = 0;
+            s->flag = 1;
+            s->command = 1;
+            s->high_bit = s->cmd & 0x80;
             s->cmd = s->cmd & 0x7f;
             printf("RTC = %d\n", s->cmd);
         } 
        // printf("RTC = %d\n", s->cmd & 1);
     }
   
-    if (flag)
+    if (s->flag)
     {
         switch (s->cmd) 
         {
             case 0x1:
-                if (high_bit)
+                if (s->high_bit)
                     printf("read1\n");
                 else
                     printf("write1\n");
-                break;
+                return val;
             case 0x5:
-                if(high_bit)
-                    printf("read2\n");
+                if (s->high_bit)
+                    {    
+                       uint8_t data;
+                       data = ((s->seconds1>>count) & 0x1) | (val & 0xfe);
+                       s->count--;
+                       return data;
+                    }
                 else
-                     printf("write2\n");
-                     if (!bits) 
-                     {
-                         
-                         bits++;
-                         break;
-                     }
-                     s->data = s->data << 1;
-                     s->data = s->data | (val & 1);
-                    // printf("DATA = %d\n", s->data &1);
-                     bits++;
-                     if (bits > 8)
-                     { 
-                         printf("DATA = %d\n", s->data);
-                         bits = 0;
-                         command = 0;
-                         flag = 0;
-                     }                    
-                break;
+                    {   
+                        if (!s->bits) 
+                        {
+                            s->bits++;
+                            return val;
+                        }
+                        s->data = s->data << 1;
+                        s->data = s->data | (val & 1);
+                        s->bits++;
+                        if (s->bits > 8)
+                        { 
+                            printf("DATA = %d\n", s->data);
+                            s->seconds2 = s->data;
+                            s->data = 0;
+                            s->bits = 0;
+                            s->command = 0;
+                            s->flag = 0;
+                        } 
+                    } 
+                    return val;                    
             case 0x9:
-                if(high_bit)
+                if(s->high_bit)
                     printf("read3\n");
                 else
                     printf("write3\n");
-                break;
+                return val;
         }
-    }       
+    }
+return val;       
 }
-
 
 static void set_regB(via_state *s, uint8_t val)
 {
-   uint8_t old = s->regs[vBufB];
-  // static uint8_t bits=0;
-   if (!(old & rTCClk) && (val & rTCClk))
-   {  
-        //s->clk->cmd = s->clk->cmd << 1;
-        //s->clk->cmd = s->clk->cmd | (val & 1);
-       // bits++;
-        //if (bits == 8)
-        RTC_clock_tics(s->clk, val);
-        tlb_flush(CPU(s->cpu), 1);
+    uint8_t old = s->regs[vBufB];
+    if (!(old & rTCClk) && (val & rTCClk))
+    {  
+       val = RTC_clock_tics(s->clk, val);
+       printf("VAL = %d\n", val & 1);
     }
     s->regs[vBufB] = val;
 }
@@ -208,6 +219,7 @@ static uint32_t via_readb(void *opaque, hwaddr offset)
 
 
 static const MemoryRegionOps via_ops = {
+
     .old_mmio = {
         .read = {
             via_readb,
@@ -236,10 +248,13 @@ void sy6522_init(MemoryRegion *rom, MemoryRegion *ram,  uint32_t base, M68kCPU *
 
     s = (via_state *)g_malloc0(sizeof(via_state));
     s->clk = (RTC_clock*)g_malloc0(sizeof(RTC_clock));
+    s->clk->command = 0;
+    s->clk->bits = 0;
+    s->clk->flag = 0;
+    s->clk->count = 7;
     s->base = base;
     s->cpu = cpu;
-    memory_region_init_io(&s->iomem, NULL, &via_ops, s,
-                          "sy6522 via", 0x2000);
+    memory_region_init_io(&s->iomem, NULL, &via_ops, s, "sy6522 via", 0x2000);
     memory_region_add_subregion(get_system_memory(),
                                 base & TARGET_PAGE_MASK, &s->iomem);
     /* TODO: Magic! */
