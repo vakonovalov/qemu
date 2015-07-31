@@ -29,11 +29,19 @@ rTCEnb  EQU 2
 
 START:
     move.l #$610000, sp
-    move.b #%10000101, d0
+    move.b #%10001101, d0
     move.b #0, d2
     bclr #rTCEnb ,(vBase+vBufB)
     jsr write
-    ;move.b #%00001001, d0
+    move.b #0, d2  
+    move.b #%00001111, d0  
+    jsr write
+    move.b #0, d2  
+    move.b #%00110001, d0  
+    jsr write
+    move.b #0, d2  
+    move.b #%00101101, d0  
+    jsr write
     move.b #0, d2
     move.b #0, d0
     jsr read
@@ -107,6 +115,8 @@ read:
 QU:
     bra qu
     END START
+
+
 
 
 

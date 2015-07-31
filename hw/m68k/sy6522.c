@@ -46,7 +46,13 @@ typedef struct {
     uint8_t regs[VIA_REGS];
     uint8_t num;
     uint8_t cmd;
-    uint8_t flag; // 0-read command; 1-read data; 2-write data;
+    uint8_t buf;
+    bool flag; // 1-read, 0-write
+    //bool write_prot;
+    uint8_t sec_reg_0;
+    uint8_t sec_reg_1;
+    uint8_t sec_reg_2;
+    uint8_t sec_reg_3;
 } via_state;
 
 static void via_set_regA(via_state *s, uint8_t val)
@@ -75,33 +81,80 @@ static void via_set_regA(via_state *s, uint8_t val)
 
 static void handl_cmd(via_state *s)
 {
-    if ((s->cmd & 0x80) == 0) s->flag = 1;
-    else s->flag = 2;
-    (s->cmd) &= 0x7F;
-
-    switch(s->cmd) {
-    case 0x01:
-	printf("z0000001 Seconds register 0\n");
-	break;
-    case 0x05:
-	printf("z0000101 Seconds register 1\n");
-	break;
-    case 0x09:
-	printf("z0001001 Seconds register 2\n");
-	break;
-    case 0x0d:
-	printf("z0001101 Seconds register 3\n");
-	break;
-    case 0x31:
-	printf("Test register\n");
-	break;
-    case 0x35:
-	printf("Write-protect register\n");
-	break;
-    //default:
-        //if (s->cmd & 0x)
-    }
-    //s->cmd = 0;
+    printf("cmd = 0x%x, buf = 0x%x, flag = 0x%x\n", (s->cmd), (s->buf), (s->flag));
+    if (s->flag) // read of assembler
+        if (s->buf) { // use command
+            switch(s->buf & 0x7F) {
+            case 0x01:
+                printf("z0000101 set Seconds register 1\n");
+                s->sec_reg_0 = s->cmd;
+                break;
+            case 0x05:
+                printf("z0000101 set Seconds register 1\n");
+                s->sec_reg_1 = s->cmd;
+                break;
+            case 0x09:
+                printf("z0001001 set Seconds register 2\n");
+                s->sec_reg_2 = s->cmd;
+                break;
+            case 0x0d:
+                printf("z0001101 set Seconds register 3\n");
+                s->sec_reg_3 = s->cmd;
+                break;
+            default:
+                if ((s->buf & 0x73) == 0x21) { //z010aa01
+                     printf("z010aa01\n");
+                } else if ((s->buf & 0x43) == 0x41) { //z1aaaa01
+                     printf("z1aaaa01\n");
+                } else printf("Unknown command\n");
+                break;
+            }
+            s->buf = 0;
+            s->cmd = 0;
+        } else { // set flag
+            if (s->cmd & 0x80) s->flag = 1;
+            else s->flag = 0;
+            if (!s->flag) // next write
+            {
+                switch(s->cmd & 0x7F) {
+                case 0x01:
+                    s->cmd = s->sec_reg_0;
+                    break;
+                case 0x05:
+                    s->cmd = s->sec_reg_1;
+                    break;
+                case 0x09:
+                    s->cmd = s->sec_reg_2;
+                    break;
+                case 0x0d:
+                    s->cmd = s->sec_reg_3;
+                    break;
+                case 0x31:
+                    s->flag = 1;
+                    s->cmd = 0;
+                    printf("Test register\n");
+                    break;
+                case 0x35:   
+                    s->flag = 1; 
+                    s->cmd = 0;
+                    printf("Write-protect register\n");
+                    break;
+                default:
+                    if ((s->cmd & 0x73) == 0x21) { //z010aa01
+                         printf("write z010aa01\n");
+                         s->cmd = 0x23;
+                    } else if ((s->cmd & 0x43) == 0x41) { //z1aaaa01
+                         printf("write z1aaaa01\n");
+                         s->cmd = 0x4D;
+                    } else printf("Unknown command\n");
+                    break;
+                }
+            } else { //next read, set cmd
+                s->buf = s->cmd;
+                s->cmd = 0;
+            }
+        }
+    else printf("Error flag\n");    
 }
 
 static void via_set_regB(via_state *s, uint8_t val)
@@ -110,16 +163,15 @@ static void via_set_regB(via_state *s, uint8_t val)
         if((s->regs[vBufB] & 0x4) != (val & 0x4) && (s->num < 7)) {
             s->num = 0;
             s->cmd = 0;
-            s->flag = 0;
+            s->flag = 1;
         }
     } else {
-        if (s->flag == 0 || s->flag == 1) {
+        if (s->flag) {
             if ((val & 0x2) == 2) {
                 s->cmd = s->cmd | ((val & 1) << (s->num));
                 if (s->num < 8) {
                     (s->num)++;
                     if (s->num == 8) {
-                        printf("int: %x\n", s->cmd);
                         s->num = 0;
                         handl_cmd(s);
                     }
@@ -134,7 +186,8 @@ static void via_set_regB(via_state *s, uint8_t val)
                     if (s->num == 8) {
                         printf("send cmd: %x finished\n", s->cmd);
                         s->num = 0;
-                        //handl_cmd(s);
+                        s->cmd = 0;
+                        s->flag = 1;
                     }
                 } else qemu_log("ERROR NUM");
             }
@@ -212,7 +265,12 @@ void sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
     s->cpu = cpu;
     s->num = 0;
     s->cmd = 0;
-    s->flag = 0;
+    s->buf = 0;
+    s->sec_reg_0 = 0x0A;
+    s->sec_reg_1 = 0x1B;
+    s->sec_reg_2 = 0x2C;
+    s->sec_reg_3 = 0x3D;
+    s->flag = 1;
     s->regs[vBufB] =  s->regs[vBufB] & 0x4;
     memory_region_init_io(&s->iomem, NULL, &via_ops, s,
                           "sy6522 via", 0x2000);
