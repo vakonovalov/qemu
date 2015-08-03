@@ -63,6 +63,7 @@ DF DC.B $00, $3C, $20, $20, $38, $20, $20, $20, $00
     END_LABEL:
     bra END_LABEL
 
+
  HANDLER:
 	move.b #%10001101, d0
     jsr SEND
@@ -124,6 +125,7 @@ DF DC.B $00, $3C, $20, $20, $38, $20, $20, $20, $00
     cmp #0, d2
     bge PRINT
     rts
+
  CHECK:
     move.l #D0, a1
     mulu #9, d1
