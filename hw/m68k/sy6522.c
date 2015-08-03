@@ -11,7 +11,7 @@
 #include "qemu/timer.h"
 #include "exec/address-spaces.h"
 #include "mac128k.h"
-
+#include "sysemu/sysemu.h"
 /* register offsets */
 enum
 {
@@ -48,12 +48,23 @@ typedef struct {
     uint8_t cmd;
     uint8_t buf;
     bool flag; // 1-read, 0-write
-    //bool write_prot;
+    bool write_prot;  // 1-write prot
     uint8_t sec_reg_0;
     uint8_t sec_reg_1;
     uint8_t sec_reg_2;
     uint8_t sec_reg_3;
+    uint8_t rTCbuff[20];
+    QEMUTimer *timer;
 } via_state;
+
+static void via_interrupt(void * opaque)
+{
+    via_state *s = (via_state *)opaque;
+    int64_t now = qemu_clock_get_ns(rtc_clock);
+    timer_mod(s->timer, now + get_ticks_per_sec());
+    m68k_set_irq_level(s->cpu, 1, 0x64 >> 2);
+    //m68k_set_irq_level(s->cpu, 0, 0x64 >> 2);
+}
 
 static void via_set_regA(via_state *s, uint8_t val)
 {
@@ -82,91 +93,97 @@ static void via_set_regA(via_state *s, uint8_t val)
 static void handl_cmd(via_state *s)
 {
     printf("cmd = 0x%x, buf = 0x%x, flag = 0x%x\n", (s->cmd), (s->buf), (s->flag));
-    if (s->flag) // read of assembler
-        if (s->buf) { // use command
-            switch(s->buf & 0x7F) {
-            case 0x01:
-                printf("z0000101 set Seconds register 1\n");
+    if (s->buf) { // use command
+        switch(s->buf & 0x7F) {
+        case 0x01:
+            printf("z0000101 set Seconds register 1\n");
+            if (!s->write_prot)
                 s->sec_reg_0 = s->cmd;
+            break;
+        case 0x05:
+            printf("z0000101 set Seconds register 1\n");
+            if (!s->write_prot)
+                s->sec_reg_1 = s->cmd;
+            break;
+        case 0x09:
+            printf("z0001001 set Seconds register 2\n");
+            if (!s->write_prot)
+                s->sec_reg_2 = s->cmd;
+            break;
+        case 0x0d:
+            printf("z0001101 set Seconds register 3: old-0x%x ", s->sec_reg_3);
+            if (!s->write_prot)
+                s->sec_reg_3 = s->cmd;
+            printf("new-0x%x\n", s->sec_reg_3);
+            break;
+        case 0x31:
+            printf("Test register\n");
+            break;
+        case 0x35:
+            if ((s->cmd) & 0x40)
+                s->write_prot = 1;
+            else s->write_prot = 0;
+            printf("Write-protect register = %d\n", s->write_prot);
+            break;
+        default:
+            if ((s->buf & 0x73) == 0x21 && !s->write_prot) { //z010aa01
+                s->rTCbuff[16 + ((s->buf & 0x0C) >> 2)] = s->cmd;
+                printf("z010aa01 rTCbuff[%d] = %d\n", 16 + ((s->buf & 0x0C) >> 2),s->rTCbuff[16 + ((s->buf & 0x0C) >> 2)]);
+            } else if ((s->buf & 0x43) == 0x41 && !s->write_prot) { //z1aaaa01
+                s->rTCbuff[(s->buf & 0x3C) >> 2] = s->cmd;
+                printf("z1aaaa01 rTCbuff[%d] = %d\n", (s->buf & 0x3C) >> 2, s->rTCbuff[(s->buf & 0x3C) >> 2]);
+            } else printf("Unknown command\n");
+            break;
+        }
+        s->buf = 0;
+        s->cmd = 0;
+    } else { // set flag
+        if (s->cmd & 0x80) 
+            s->flag = 1;
+        else s->flag = 0;
+        if (s->flag) // next write
+        {
+            switch(s->cmd & 0x7F) {
+            case 0x01:
+                s->cmd = s->sec_reg_0;
                 break;
             case 0x05:
-                printf("z0000101 set Seconds register 1\n");
-                s->sec_reg_1 = s->cmd;
+                s->cmd = s->sec_reg_1;
                 break;
             case 0x09:
-                printf("z0001001 set Seconds register 2\n");
-                s->sec_reg_2 = s->cmd;
+                s->cmd = s->sec_reg_2;
                 break;
             case 0x0d:
-                printf("z0001101 set Seconds register 3\n");
-                s->sec_reg_3 = s->cmd;
+                s->cmd = s->sec_reg_3;
                 break;
             default:
-                if ((s->buf & 0x73) == 0x21) { //z010aa01
-                     printf("z010aa01\n");
-                } else if ((s->buf & 0x43) == 0x41) { //z1aaaa01
-                     printf("z1aaaa01\n");
+                if ((s->cmd & 0x73) == 0x21) { //z010aa01
+                    printf("write z010aa01\n");
+                    s->cmd = s->rTCbuff[16 + ((s->cmd & 0x0C) >> 2)];
+                } else if ((s->cmd & 0x43) == 0x41) { //z1aaaa01
+                    printf("write z1aaaa01\n");
+                    s->cmd = s->rTCbuff[(s->cmd & 0x3C) >> 2];
                 } else printf("Unknown command\n");
                 break;
             }
-            s->buf = 0;
+        } else { //next read, set cmd
+            s->buf = s->cmd;
             s->cmd = 0;
-        } else { // set flag
-            if (s->cmd & 0x80) s->flag = 1;
-            else s->flag = 0;
-            if (!s->flag) // next write
-            {
-                switch(s->cmd & 0x7F) {
-                case 0x01:
-                    s->cmd = s->sec_reg_0;
-                    break;
-                case 0x05:
-                    s->cmd = s->sec_reg_1;
-                    break;
-                case 0x09:
-                    s->cmd = s->sec_reg_2;
-                    break;
-                case 0x0d:
-                    s->cmd = s->sec_reg_3;
-                    break;
-                case 0x31:
-                    s->flag = 1;
-                    s->cmd = 0;
-                    printf("Test register\n");
-                    break;
-                case 0x35:   
-                    s->flag = 1; 
-                    s->cmd = 0;
-                    printf("Write-protect register\n");
-                    break;
-                default:
-                    if ((s->cmd & 0x73) == 0x21) { //z010aa01
-                         printf("write z010aa01\n");
-                         s->cmd = 0x23;
-                    } else if ((s->cmd & 0x43) == 0x41) { //z1aaaa01
-                         printf("write z1aaaa01\n");
-                         s->cmd = 0x4D;
-                    } else printf("Unknown command\n");
-                    break;
-                }
-            } else { //next read, set cmd
-                s->buf = s->cmd;
-                s->cmd = 0;
-            }
         }
-    else printf("Error flag\n");    
+    }
 }
 
 static void via_set_regB(via_state *s, uint8_t val)
 {
+    //printf("cmd: %x, val: %x\n", s->cmd, val);
     if ((val & 0x4) == 4) {
         if((s->regs[vBufB] & 0x4) != (val & 0x4) && (s->num < 7)) {
             s->num = 0;
             s->cmd = 0;
-            s->flag = 1;
+            s->flag = 0;
         }
     } else {
-        if (s->flag) {
+        if (!s->flag) {
             if ((val & 0x2) == 2) {
                 s->cmd = s->cmd | ((val & 1) << (s->num));
                 if (s->num < 8) {
@@ -178,7 +195,7 @@ static void via_set_regB(via_state *s, uint8_t val)
                 } else qemu_log("ERROR NUM");
             }
         } else {
-            if ((val & 0x2) == 2) {
+            if (!(val & 0x2) && ((s->regs[vBufB] & 0x2) == 2)) {
                 val &= 0xFE;
                 val |= ((s->cmd) >> (s->num) & 0x1);
                 if (s->num < 8) {
@@ -266,11 +283,12 @@ void sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
     s->num = 0;
     s->cmd = 0;
     s->buf = 0;
+    s->write_prot = 0;
     s->sec_reg_0 = 0x0A;
     s->sec_reg_1 = 0x1B;
     s->sec_reg_2 = 0x2C;
     s->sec_reg_3 = 0x3D;
-    s->flag = 1;
+    s->flag = 0;
     s->regs[vBufB] =  s->regs[vBufB] & 0x4;
     memory_region_init_io(&s->iomem, NULL, &via_ops, s,
                           "sy6522 via", 0x2000);
@@ -282,6 +300,11 @@ void sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
     memory_region_init_alias(&s->ram, NULL, "RAM overlay", ram, 0x0, 0x20000);
 
     qemu_register_reset(sy6522_reset, s);
+
+
+    s->timer = timer_new_ns(rtc_clock, via_interrupt, s);
+    int64_t now = qemu_clock_get_ns(rtc_clock);
+    timer_mod(s->timer, now + get_ticks_per_sec());
 
     sy6522_reset(s);
 }

@@ -120,9 +120,6 @@ static void mac128k_init(MachineState *machine)
     iwm_init(address_space_mem, IWM_BASE_ADDR, cpu);
     sy6522_init(rom, ram, VIA_BASE_ADDR, cpu);
 
-    /* Adapter */
-    testsystem_init(address_space_mem, 0x800000, cpu);
-
     /* Display */
     display->con = graphic_console_init(NULL, 0, &mac_display_ops, display);
     qemu_console_resize(display->con, SCREEN_WIDTH, SCREEN_HEIGHT);

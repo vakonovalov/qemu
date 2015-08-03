@@ -38,17 +38,17 @@ static void ad_interrupt(void * opaque)
     ad_state *s = (ad_state *)opaque;
     if (s->is_dec == 0)
     {
-	if (s->max_val < s->val) printf("Error val_max\n"); else
-	s->val = s->val + s->step;
-    } else
-    if (s->max_val > s->val) printf("Error val_max\n"); else
+	    if (s->max_val < s->val) 
+            printf("Error val_max\n"); else
+	    s->val = s->val + s->step;
+    } else if (s->max_val > s->val) 
+        printf("Error val_max\n"); else
 	s->val = s->val - s->step;
     uint32_t ticks = 1;
     int64_t now = qemu_clock_get_ns(rtc_clock);
     timer_mod(s->timer, now + (int64_t)ticks * get_ticks_per_sec());
 
     m68k_set_irq_level(s->cpu, 1, 25);
-    printf("value: %d\n", s->val);
 }
 
 static void ad_writeb(void *opaque, hwaddr offset,
@@ -61,16 +61,16 @@ static void ad_writeb(void *opaque, hwaddr offset,
     switch(offset) {
     case RTC_VL:
     	s->val = value;
-	break;
+	    break;
     case RTC_MV:
-  	s->max_val = value;
-	break;
+  	    s->max_val = value;
+	    break;
     case RTC_ID:
-  	s->is_dec = value;
-	break;
+  	    s->is_dec = value;
+	    break;
     case RTC_ST:
-  	s->step = value;
-	break;
+  	    s->step = value;
+	    break;
     }
 }
 
@@ -84,16 +84,16 @@ static uint32_t ad_readb(void *opaque, hwaddr offset)
     switch(offset) {
     case RTC_VL:
     	value = s->val;
-	break;
+	    break;
     case RTC_MV:
-  	value = s->max_val;
-	break;
+  	    value = s->max_val;
+	    break;
     case RTC_ID:
-  	value = s->is_dec;
-	break;
+  	    value = s->is_dec;
+	    break;
     case RTC_ST:
-  	value = s->step;
-	break;
+  	    value = s->step;
+	    break;
     }
     m68k_set_irq_level(s->cpu, 0, 25);
     return value;
@@ -125,13 +125,13 @@ static const MemoryRegionOps ad_ops = {
     .old_mmio = {
         .read = {
             ad_readb,
-	    ad_readw,
-	    ad_readl,
+	        ad_readw,
+	        ad_readl,
         },
         .write = {
             ad_writeb,
-	    ad_writew,
-	    ad_writel,
+	        ad_writew,
+	        ad_writel,
         },
     },
     .endianness = DEVICE_NATIVE_ENDIAN,
