@@ -1,52 +1,89 @@
 vBufB EQU $EFE1FE
+vBufA EQU $EFFFFE
 
     ORG $400000
     DC.L 0
     DC.L MAIN
     
 MAIN:
-    move.l #$610000,sp
-    move.l #$01A700,a0    
+    move.b #0,(vBufA)
+    move.l #INTERRUPT,$64
+
+    move.l #$010000,sp
+    move.l #$01A700,a0
     lea N0,a1
+
+    move.l #$01,d0
+    bsr SEND_VIA
+    move.l #$fa,d0
+    bsr SEND_VIA
+
+    move.l #$05,d0
+    bsr SEND_VIA
+    move.l #$fb,d0
+    bsr SEND_VIA
+
+    move.l #$09,d0
+    bsr SEND_VIA
+    move.l #$fc,d0
+    bsr SEND_VIA
+
+    move.l #$0d,d0
+    bsr SEND_VIA
+    move.l #$fd,d0
+    bsr SEND_VIA
+
+    move.l #$35,d0
+    bsr SEND_VIA
+    move.l #$ff,d0
+    bsr SEND_VIA
+
+    move.l #$01,d0
+    bsr SEND_VIA
+    move.l #$0,d0
+    bsr SEND_VIA
+
+    move.l #$35,d0
+    bsr SEND_VIA
+    move.l #$00,d0
+    bsr SEND_VIA
+
+    move.l #$01,d0
+    bsr SEND_VIA
+    move.l #$f0,d0
+    bsr SEND_VIA
     
 LALAL:
-	move.l #$81,d0
-	bsr SEND_VIA
-
-	bsr RECEIVE_VIA
-	move.l d0,d4
-    
-	bsr PRINT_REGISTER
+    stop #$2000
 
     bra LALAL
 
 SEND_VIA:
-	move.l #7,d2
+    move.l #7,d2
 .LOOP_SEND_VIA:
-	move.b d0,d1
-	ror.b d2,d1
-	and.b #1,d1
-	move.b d1,(vBufB)
-	or.b #2,d1
-	move.b d1,(vBufB)
+    move.b d0,d1
+    ror.b d2,d1
+    and.b #1,d1
+    move.b d1,(vBufB)
+    or.b #2,d1
+    move.b d1,(vBufB)
 
-	dbf d2,.LOOP_SEND_VIA
-	rts
+    dbf d2,.LOOP_SEND_VIA
+    rts
 
 RECEIVE_VIA:
-	move.l #0,d0
-	move.l #7,d2
-	move.b #$00,(vBufB)
+    move.l #0,d0
+    move.l #7,d2
 .LOOP_RECEIVE_VIA:
-	move.b #$02,(vBufB)
-	move.b (vBufB),d1
-	and.b #$1,d1
-	rol.b #1,d0
-	or.b d1,d0
-	move.b #$00,(vBufB)
-	
-	dbf d2,.LOOP_RECEIVE_VIA
-	rts
+    move.b #$02,(vBufB)
+    move.b #$00,(vBufB)
+    move.b (vBufB),d1
+    and.b #$1,d1
+    rol.b #1,d0
+    or.b d1,d0
+
+    dbf d2,.LOOP_RECEIVE_VIA
+    rts
 
 PRINT:
     move #7,d3
@@ -58,7 +95,7 @@ PRINT:
 
     move.l d2,d6
     mulu #8,d6
-    move.l d6,a3	
+    move.l d6,a3
 .LOOP_PRINT
     move.b (a1,a3),d6
     move.b d6,(0,a0,a2.l)
@@ -84,6 +121,33 @@ PRINT_REGISTER:
     dbf d7,.LOOP_PR_REGISTER
     rts
 
+INTERRUPT:
+    move.l #$8d,d0
+    bsr SEND_VIA
+    bsr RECEIVE_VIA
+    move.b d0,d4
+    lsl.l #8,d4
+
+    move.l #$89,d0
+    bsr SEND_VIA
+    bsr RECEIVE_VIA
+    move.b d0,d4
+    lsl.l #8,d4
+
+    move.l #$85,d0
+    bsr SEND_VIA
+    bsr RECEIVE_VIA
+    move.b d0,d4
+    lsl.l #8,d4
+
+    move.l #$81,d0
+    bsr SEND_VIA
+    bsr RECEIVE_VIA
+    move.b d0,d4
+    
+    bsr PRINT_REGISTER
+    rte
+
 NUMBERS:
 N0 DC.B $18,$24,$42,$42,$42,$42,$24,$18
 N1 DC.B $04,$0c,$14,$24,$04,$04,$04,$04
@@ -103,15 +167,6 @@ NE DC.B $7e,$40,$40,$7c,$40,$40,$40,$7e
 NF DC.B $7e,$40,$40,$78,$40,$40,$40,$40
 
     END MAIN
-
-
-
-
-
-
-
-
-
 
 *~Font name~Courier New~
 *~Font size~10~
