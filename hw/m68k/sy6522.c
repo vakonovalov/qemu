@@ -111,7 +111,7 @@ static void cmdHandlerW(via_state *s, uint8_t val)
     }
     else if(!(s->wrPrReg & 0x80)) {
         switch (s->cmd) {
-		case 0x01:
+        case 0x01:
             s->secReg0 = s->param;
             m68k_set_irq_level(s->cpu, 1, 0x64 >> 2);
             break;
@@ -306,8 +306,6 @@ void sy6522_init(MemoryRegion *rom, MemoryRegion *ram, uint32_t base, M68kCPU *c
     s->secReg3 = 0;
     s->wrPrReg = 0x80;
     int64_t now = qemu_clock_get_ns(rtc_clock);
-    
-
     s->timer = timer_new_ms(rtc_clock, interrupt, s);
     timer_mod_ns(s->timer, now + get_ticks_per_sec());
 }
