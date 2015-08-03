@@ -106,42 +106,39 @@ static void reset_parametrs(via_state *s)
 
 static void cmdHandlerW(via_state *s, uint8_t val)
 {
-	if (s->cmd == 0x35) {
-		s->wrPrReg = s->param;
+    if (s->cmd == 0x35) {
+        s->wrPrReg = s->param;
     }
     else if(!(s->wrPrReg & 0x80)) {
         switch (s->cmd) {
 		case 0x01:
-		    s->secReg0 = s->param;
+            s->secReg0 = s->param;
             m68k_set_irq_level(s->cpu, 1, 0x64 >> 2);
-		    break;
-		case 0x05:
-		    s->secReg1 = s->param;
+            break;
+        case 0x05:
+            s->secReg1 = s->param;
             m68k_set_irq_level(s->cpu, 1, 0x64 >> 2);
-		    break;
-		case 0x09:
-		    s->secReg2 = s->param;
+            break;
+        case 0x09:
+            s->secReg2 = s->param;
             m68k_set_irq_level(s->cpu, 1, 0x64 >> 2);
-		    break;
-		case 0x0D:
-		    s->secReg3 = s->param;
+            break;
+        case 0x0D:
+            s->secReg3 = s->param;
             m68k_set_irq_level(s->cpu, 1, 0x64 >> 2);
-		    break;
-		case 0x31:
-		    s->testReg = s->param;
-		    break;  
-		default: 
+            break;
+        case 0x31:
+            s->testReg = s->param;
+            break;  
+        default: 
 		    if ((s->cmd >= 0x41) && (s->cmd <= 0x7D)) {
 		        s->rTCbuff[(s->cmd >> 2) - (0x41 >> 2)] = s->param;
 		    }
 		    else if ((s->cmd >= 0x21) && (s->cmd <= 0x2D)) {
 		        s->rTCbuff[16 + (s->cmd >> 2) - (0x21 >> 2)] = s->param;
-		    }
-		}
+            }
+        }
     }
-	else {
-        printf("Error: Write-protect enabled\n");       
-	}
 }
 
 static void cmdHandlerR(via_state *s, uint8_t val)
