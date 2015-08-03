@@ -307,5 +307,6 @@ void sy6522_init(MemoryRegion *rom, MemoryRegion *ram, uint32_t base, M68kCPU *c
     s->wrPrReg = 0x80;
     int64_t now = qemu_clock_get_ns(rtc_clock);
     s->timer = timer_new_ms(rtc_clock, interrupt, s);
+    
     timer_mod_ns(s->timer, now + get_ticks_per_sec());
 }
