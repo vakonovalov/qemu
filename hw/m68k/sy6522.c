@@ -131,11 +131,11 @@ static void cmdHandlerW(via_state *s, uint8_t val)
             s->testReg = s->param;
             break;  
         default: 
-		    if ((s->cmd >= 0x41) && (s->cmd <= 0x7D)) {
-		        s->rTCbuff[(s->cmd >> 2) - (0x41 >> 2)] = s->param;
-		    }
-		    else if ((s->cmd >= 0x21) && (s->cmd <= 0x2D)) {
-		        s->rTCbuff[16 + (s->cmd >> 2) - (0x21 >> 2)] = s->param;
+            if ((s->cmd >= 0x41) && (s->cmd <= 0x7D)) {
+                s->rTCbuff[(s->cmd >> 2) - (0x41 >> 2)] = s->param;
+            }
+            else if ((s->cmd >= 0x21) && (s->cmd <= 0x2D)) {
+                s->rTCbuff[16 + (s->cmd >> 2) - (0x21 >> 2)] = s->param;
             }
         }
     }
@@ -145,19 +145,19 @@ static void cmdHandlerR(via_state *s, uint8_t val)
 {
     switch (s->cmd) {
     case 0x81:
-		s->param = s->secReg0;
+        s->param = s->secReg0;
         m68k_set_irq_level(s->cpu, 0, 0x64 >> 2);
         break;
     case 0x85:
-		s->param = s->secReg1;
+        s->param = s->secReg1;
         m68k_set_irq_level(s->cpu, 0, 0x64 >> 2);
         break;
     case 0x89:
-		s->param = s->secReg2;
+        s->param = s->secReg2;
         m68k_set_irq_level(s->cpu, 0, 0x64 >> 2);
         break;
     case 0x8D:
-		s->param = s->secReg3;
+        s->param = s->secReg3;
         m68k_set_irq_level(s->cpu, 0, 0x64 >> 2);
         break;
     default: 
