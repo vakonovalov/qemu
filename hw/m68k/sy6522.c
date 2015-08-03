@@ -39,6 +39,7 @@ enum
 #define rTCEnable (1 << 2)
 
 typedef struct {
+    uint8_t seconds0;
     uint8_t seconds1;
     uint8_t seconds2;
     uint8_t seconds3;
@@ -47,9 +48,10 @@ typedef struct {
     uint8_t RAM[20];
     uint8_t cmd;
     uint8_t data;
-    bool command;
+    bool    command;
     uint8_t bits;
     uint8_t count;
+    bool lock;
     bool flag;
     uint8_t high_bit;
 } RTC_clock;
@@ -117,30 +119,111 @@ static uint8_t RTC_clock_tics(RTC_clock *s, uint8_t val)
             s->high_bit = s->cmd & 0x80;
             s->cmd = s->cmd & 0x7f;
             printf("RTC = %d\n", s->cmd);
-        } 
-       // printf("RTC = %d\n", s->cmd & 1);
+            //printf("H_B = %d\n", s->high_bit);
+        }    
     }
-  
+    
     if (s->flag)
     {
         switch (s->cmd) 
         {
             case 0x1:
                 if (s->high_bit)
-                    printf("read1\n");
-                else
-                    printf("write1\n");
-                return val;
-            case 0x5:
-                if (s->high_bit)
                     {    
+                           
                        uint8_t data;
-                       data = ((s->seconds1>>count) & 0x1) | (val & 0xfe);
+                       data = ((s->seconds0>>s->count) & 0x1) | (val & 0xfe);
+
                        s->count--;
                        return data;
                     }
                 else
                     {   
+                        if (!s->lock)
+                        {
+                            printf("Recording is not possible, the register is locked!\n");
+                            return val;
+                        }
+                        if (!s->bits) 
+                        {
+                            s->bits++;
+                            return val;
+                        }
+                        s->data = s->data << 1;
+                        s->data = s->data | (val & 1);
+                        s->bits++;
+                        if (s->bits == 8)
+                        { 
+                            printf("DATA = %d\n", s->data);
+                            s->seconds0 = s->data;
+                            s->data = 0;
+                            s->bits = 0;
+                            s->command = 0;
+                            s->flag = 0;
+                        } 
+                    } 
+                    return val;          
+            case 0x5:
+                if (s->high_bit)
+                    {    
+                        if (s->bits == 8)
+                        {
+                            s->data = 0;
+                            s->bits = 0;
+                            s->command = 0;
+                            s->flag = 0;
+                            s->count = 7;
+                            return val;
+                        } 
+                        uint8_t data;
+                        data = ((s->seconds1>>s->count) & 0x1) | (val & 0xfe);
+                        s->count--;
+                         printf("send = %d\n", data & 0x1);
+                        s->bits++;
+                        return data;
+                    }
+                else
+                    {   
+                        if (!s->lock)
+                        {
+                            printf("Recording is not possible, the register is locked!\n");
+                            return val;
+                        } 
+                        if (!s->bits) 
+                        {
+                            s->bits++;
+                            return val;
+                        }
+                        s->data = s->data << 1;
+                        s->data = s->data | (val & 1);
+                        s->bits++;
+                        if (s->bits > 8)
+                        { 
+                            printf("DATA = %d\n", s->data);
+                            s->seconds1 = s->data;
+                            s->data = 0;
+                            s->bits = 0;
+                            s->command = 0;
+                            s->flag = 0;
+                        } 
+                    } 
+                    return val;                    
+            case 0x9:
+                if (s->high_bit)
+                    {    
+                       uint8_t data;
+                       data = ((s->seconds2>>s->count) & 0x1) | (val & 0xfe);
+                       s->count--;
+                       return data;
+                    }
+                else
+                    {   
+                        if (!s->lock)
+                        {
+                            printf("Recording is not possible, the register is locked!\n");
+                            return val;
+                        }
+                        if (!s->bits) 
                         if (!s->bits) 
                         {
                             s->bits++;
@@ -159,12 +242,105 @@ static uint8_t RTC_clock_tics(RTC_clock *s, uint8_t val)
                             s->flag = 0;
                         } 
                     } 
-                    return val;                    
-            case 0x9:
-                if(s->high_bit)
-                    printf("read3\n");
+                    return val;          
+            case 0x13:
+                if (s->high_bit)
+                {    
+                    uint8_t data;
+                    data = ((s->seconds3>>s->count) & 0x1) | (val & 0xfe);
+                    s->count--;
+                    return data;
+                }
                 else
-                    printf("write3\n");
+                {   
+                    if (!s->lock)
+                    {
+                        printf("Recording is not possible, the register is locked!\n");
+                        return val;
+                    }
+                    if (!s->bits) 
+                    {
+                        s->bits++;
+                        return val;
+                    }
+                    s->data = s->data << 1;
+                    s->data = s->data | (val & 1);
+                    s->bits++;
+                    if (s->bits > 8)
+                    { 
+                        printf("DATA = %d\n", s->data);
+                        s->seconds3 = s->data;
+                        s->data = 0;
+                        s->bits = 0;
+                        s->command = 0;
+                        s->flag = 0;
+                    } 
+                } 
+                return val;
+            case 0x49:
+                 if (s->high_bit)
+                {    
+                    printf("Error! Register (test) is only write!\n");
+                    return val;
+                }
+                else
+                {   
+                    if (!s->lock)
+                    {
+                        printf("Recording is not possible, the register is locked!\n");
+                        return val;
+                    }
+                    if (!s->bits) 
+                    {
+                        s->bits++;
+                        return val;
+                    }
+                    s->data = s->data << 1;
+                    s->data = s->data | (val & 1);
+                    s->bits++;
+                    if (s->bits > 8)
+                    { 
+                        printf("DATA = %d\n", s->data);
+                        s->test = s->data;
+                        s->data = 0;
+                        s->bits = 0;
+                        s->command = 0;
+                        s->flag = 0;
+                    } 
+                }
+                return val;
+            case 0x53:
+                if (s->high_bit)
+                {    
+                    printf("Error! Register (write_protect) is only write!\n");
+                    return val;
+                }
+                else
+                {   
+                    if (!s->bits) 
+                    {
+                        s->bits++;
+                        return val;
+                    }
+                    s->data = s->data << 1;
+                    s->data = s->data | (val & 1);
+                    s->bits++;
+                    if (s->bits > 8)
+                    { 
+                        printf("DATA = %d\n", s->data);
+                        s->write_protect = s->data;
+                        if(s->write_protect & 0x80)
+                            s->lock = 0;
+                        s->data = 0;
+                        s->bits = 0;
+                        s->command = 0;
+                        s->flag = 0;
+                    } 
+                }
+                return val;
+            case 0x54:
+                return val;
+            case 0x55:
                 return val;
         }
     }
@@ -177,7 +353,7 @@ static void set_regB(via_state *s, uint8_t val)
     if (!(old & rTCClk) && (val & rTCClk))
     {  
        val = RTC_clock_tics(s->clk, val);
-       printf("VAL = %d\n", val & 1);
+       //printf("VAL = %d\n", val & 1);
     }
     s->regs[vBufB] = val;
 }
@@ -252,6 +428,8 @@ void sy6522_init(MemoryRegion *rom, MemoryRegion *ram,  uint32_t base, M68kCPU *
     s->clk->bits = 0;
     s->clk->flag = 0;
     s->clk->count = 7;
+    s->clk->lock = 1;
+    s->clk->seconds1 = 1;
     s->base = base;
     s->cpu = cpu;
     memory_region_init_io(&s->iomem, NULL, &via_ops, s, "sy6522 via", 0x2000);
