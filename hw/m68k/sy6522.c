@@ -141,7 +141,7 @@ static void rtc_cmd_handler_r(via_state *s, uint8_t val)
     if ((s->rtc.cmd & ~RTCSEC_MASK & ~REGB_RTCRWBIT_MASK) == 0x01) {
         s->rtc.param = s->rtc.sec_reg[(s->rtc.cmd & RTCSEC_MASK) >> 2];
         m68k_set_irq_level(s->cpu, 0, 0x64 >> 2);
-    } else if ((s->rtc.cmd & ~RTCRAMBUF1_MASK& ~REGB_RTCRWBIT_MASK) == 0x41) {
+    } else if ((s->rtc.cmd & ~RTCRAMBUF1_MASK & ~REGB_RTCRWBIT_MASK) == 0x41) {
         s->rtc.param = s->rtc.buf_RAM[(s->rtc.cmd & RTCRAMBUF1_MASK) >> 2];
     } else if ((s->rtc.cmd & ~RTCRAMBUF2_MASK & ~REGB_RTCRWBIT_MASK) == 0x21) {
         s->rtc.param = s->rtc.buf_RAM[16 + ((s->rtc.cmd & RTCRAMBUF2_MASK) >> 2)];
