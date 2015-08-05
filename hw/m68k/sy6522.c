@@ -261,20 +261,20 @@ static void rtc_interrupt(void * opaque)
     m68k_set_irq_level(s->cpu, 1, 0x64 >> 2);  
 }
 
-static void rtc_reset(via_state *s)
+static void rtc_reset(rtc_state *rtc)
 {
     uint64_t now = qemu_clock_get_ns(rtc_clock);
     uint8_t i;
     for (i = 0; i < 4; ++i)
-    s->rtc.sec_reg[i] = (now >> (32 + 8 * i)) & 0xFF; 
-    s->rtc.wr_pr_reg = 0x80;
-    timer_mod_ns(s->rtc.timer, now + get_ticks_per_sec()); 
+    rtc->sec_reg[i] = (now >> (32 + 8 * i)) & 0xFF; 
+    rtc->wr_pr_reg = 0x80;
+    timer_mod_ns(rtc->timer, now + get_ticks_per_sec()); 
 }
 
 static void rtc_init(via_state *s)
 {
     s->rtc.timer = timer_new_ms(rtc_clock, rtc_interrupt, s);  
-    rtc_reset(s);
+    rtc_reset(&s->rtc);
 }
 
 static void sy6522_reset(void *opaque)
