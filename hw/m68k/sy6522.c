@@ -99,12 +99,6 @@ static void via_set_regBdir(via_state *s, uint8_t val)
     s->regs[vDirB] = val;
 }
 
-static void rtc_sender(rtc_state *rtc, uint8_t *val)
-{
-    *val &= ~REGB_RTCDATA_MASK;
-    *val |= (rtc->param >> (7 - rtc->count++)) & REGB_RTCDATA_MASK;
-}
-
 static void rtc_param_reset(rtc_state *rtc)
 {
     rtc->param = 0;
@@ -177,7 +171,8 @@ static void via_set_regBbuf(via_state *s, uint8_t val)
             }
         } else if ((old & REGB_RTCCLK_MASK) && !(val & REGB_RTCCLK_MASK)
                    && !(s->regs[vDirB] & REGB_RTCDATA_MASK)) {
-            rtc_sender(&s->rtc, &val);
+            val &= ~REGB_RTCDATA_MASK;
+            val |= (s->rtc.param >> (7 - s->rtc.count++)) & REGB_RTCDATA_MASK;
             if (s->rtc.count == 8) {
                 rtc_param_reset(&s->rtc);
             }
