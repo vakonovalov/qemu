@@ -269,9 +269,10 @@ static void rtc_reset(rtc_state *rtc)
     timer_mod_ns(rtc->timer, now + get_ticks_per_sec());
 }
 
-static void rtc_init(void *opaque)
+static void rtc_init(void *opaque, qemu_irq irq)
 {
     rtc_state *rtc = (rtc_state *)opaque;
+    rtc->irq = irq;
     rtc->timer = timer_new_ms(rtc_clock, rtc_interrupt, rtc);
     rtc_reset(rtc);
 }
@@ -279,7 +280,9 @@ static void rtc_init(void *opaque)
 static void set_rtc_irq(void *opaque, int irq, int level)
 {
     via_state *s = (via_state *)opaque;
-    m68k_set_irq_level(s->cpu, level, irq); 
+    if (irq == 0) {
+        m68k_set_irq_level(s->cpu, level, 0x64 >> 2); 
+    }
 }
 
 static void sy6522_reset(void *opaque)
@@ -296,8 +299,10 @@ void sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
                  uint32_t base, M68kCPU *cpu)
 {
     via_state *s;
+    qemu_irq *pic;
 
     s = (via_state *)g_malloc0(sizeof(via_state));
+    pic = qemu_allocate_irqs(set_rtc_irq, s, 1);
 
     s->base = base;
     s->cpu = cpu;
@@ -311,8 +316,7 @@ void sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
     memory_region_set_readonly(&s->rom, true);
     memory_region_init_alias(&s->ram, NULL, "RAM overlay", ram, 0x0, 0x20000);
 
-    s->rtc.irq = qemu_allocate_irq(set_rtc_irq, s, 0x64 >> 2);
-    rtc_init(&s->rtc);
+    rtc_init(&s->rtc, pic[0]);
 
     qemu_register_reset(sy6522_reset, s);
     sy6522_reset(s);
