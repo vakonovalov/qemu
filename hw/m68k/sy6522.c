@@ -12,8 +12,7 @@
 #include "exec/address-spaces.h"
 #include "mac128k.h"
 #include "sysemu/sysemu.h"
-
-#include "hw/m68k/mcf.h"
+#include "hw/irq.h"
 
 /* register offsets */
 enum
@@ -137,7 +136,7 @@ static void rtc_cmd_handler_r(rtc_state *rtc, uint8_t val)
 {
     if ((rtc->cmd & ~RTCSEC_MASK & ~REGB_RTCRWBIT_MASK) == 0x01) {
         rtc->param = rtc->sec_reg[(rtc->cmd & RTCSEC_MASK) >> 2];
-        qemu_set_irq(rtc->irq, 0);
+        qemu_irq_lower(rtc->irq);
     } else if ((rtc->cmd & ~RTCRAMBUF1_MASK & ~REGB_RTCRWBIT_MASK) == 0x41) {
         rtc->param = rtc->buf_RAM[(rtc->cmd & RTCRAMBUF1_MASK) >> 2];
     } else if ((rtc->cmd & ~RTCRAMBUF2_MASK & ~REGB_RTCRWBIT_MASK) == 0x21) {
@@ -255,7 +254,7 @@ static void rtc_interrupt(void * opaque)
         rtc->sec_reg[1]++;
     }
     rtc->sec_reg[0]++;
-    qemu_set_irq(rtc->irq, 1);
+    qemu_irq_raise(rtc->irq);
 }
 
 static void rtc_reset(rtc_state *rtc)
@@ -306,7 +305,6 @@ void sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
 
     s->base = base;
     s->cpu = cpu;
-   
     memory_region_init_io(&s->iomem, NULL, &via_ops, s,
                           "sy6522 via", 0x2000);
     memory_region_add_subregion(get_system_memory(),
