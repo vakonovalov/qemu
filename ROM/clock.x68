@@ -8,6 +8,7 @@
     DC.L    0
     DC.L    START
 
+monitor EQU $1A700
 vBase EQU $EFE1FE 
 vBufB EQU 512*0
 vDirB EQU 512*2 
@@ -23,37 +24,22 @@ D2 DC.B $00, $18, $24, $04, $08, $10, $20, $3C, $00
 D3 DC.B $00, $3C, $08, $10, $38, $04, $04, $38, $00
 D4 DC.B $00, $04, $0C, $14, $24, $3E, $04, $04, $00
 D5 DC.B $00, $3C, $20, $20, $38, $04, $04, $38, $00
-D6 DC.B $00, $1C, $20, $20, $38, $24, $24, $18, $00
+D6 DC.B $00, $18, $24, $20, $38, $24, $24, $18, $00
 D7 DC.B $00, $3C, $04, $08, $10, $20, $20, $20, $00
 D8 DC.B $00, $18, $24, $24, $18, $24, $24, $18, $00
-D9 DC.B $00, $18, $24, $24, $1C, $04, $04, $38, $00
+D9 DC.B $00, $18, $24, $24, $1C, $04, $24, $18, $00
 DA DC.B $00, $08, $14, $14, $22, $3E, $22, $22, $00
 DB DC.B $00, $38, $24, $24, $38, $24, $24, $38, $00
-DC DC.B $00, $1C, $20, $20, $20, $20, $20, $1C, $00
+DC DC.B $00, $18, $24, $20, $20, $20, $24, $18, $00
 DD DC.B $00, $38, $24, $24, $24, $24, $24, $38, $00
 DE DC.B $00, $3C, $20, $20, $38, $20, $20, $3C, $00
 DF DC.B $00, $3C, $20, $20, $38, $20, $20, $20, $00
 
  START: 
-    bra ROM_MANIPULATION
-    END_ROM_MANIPULATION:
+    and.b #$EF, vBase+vBufA
     move.l #$10000, sp
     move.l #HANDLER, $64
-    bclr #rTCEnb, vBase+vBufB
-
-    move.b #%00110101, d0
-    jsr SEND
-    move.b #%00000000, d0
-    jsr SEND
-    move.b #%00000001, d0
-    jsr SEND
-    move.b #%00000000, d0
-    jsr SEND
-    move.b #%00110101, d0
-    jsr SEND
-    move.b #%10000000, d0
-    jsr SEND   
-
+    bclr #rTCEnb, vBase+vBufB 
     READ:
     stop #$2000
     bra READ
@@ -81,11 +67,12 @@ DF DC.B $00, $3C, $20, $20, $38, $20, $20, $20, $00
     jsr SEND
     jsr RECEIVE
     move.l #28, d2  
-    move.l  #$1A700, a0
+    move.l  #monitor+641, a0
     jsr PRINT
     rte
    
  SEND:
+    bset #rTCData, vBase+vDirB
     move.b #7, d2
     ITER_SEND:
     move.b d0, d1
@@ -101,6 +88,7 @@ DF DC.B $00, $3C, $20, $20, $38, $20, $20, $20, $00
     rts
 
  RECEIVE:
+    bclr #rTCData, vBase+vDirB
     move.b #0, d0 
     move.b #7, d2
     ITER_RECEIVE:
@@ -139,47 +127,8 @@ DF DC.B $00, $3C, $20, $20, $38, $20, $20, $20, $00
     bne ITER
     sub.l  #511, a0
     rts
-
- ROM_MANIPULATION:
-    move.b (vBase+vBufA), d0
-    and.b #$EF, d0
-    move.b d0, vBase+vBufA
-    bra END_ROM_MANIPULATION
         
  END    START
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
