@@ -32,7 +32,7 @@ enum
     vBufA = 15,
     VIA_REGS = 16
 };
-
+#define speed 1000
 #define V_OVERLAY_MASK (1 << 4)
 
 typedef struct {
@@ -61,7 +61,20 @@ static void via_interrupt(void * opaque)
 {
     via_state *s = (via_state *)opaque;
     int64_t now = qemu_clock_get_ns(rtc_clock);
-    timer_mod(s->timer, now + get_ticks_per_sec());
+    timer_mod(s->timer, now + get_ticks_per_sec()/speed);
+    if (s->sec_reg_0 == 0xFF) {
+        if(s->sec_reg_1 == 0xFF) {
+            if(s->sec_reg_2 == 0xFF) {
+                if(s->sec_reg_3 == 0xFF) {
+                    printf("Time out");
+                }
+                s->sec_reg_3 ++;
+            } 
+            s->sec_reg_2 ++;
+        }
+        s->sec_reg_1 ++;
+    } 
+    s->sec_reg_0 ++;
     m68k_set_irq_level(s->cpu, 1, 0x64 >> 2);
     //m68k_set_irq_level(s->cpu, 0, 0x64 >> 2);
 }
@@ -92,11 +105,11 @@ static void via_set_regA(via_state *s, uint8_t val)
 
 static void handl_cmd(via_state *s)
 {
-    printf("cmd = 0x%x, buf = 0x%x, flag = 0x%x\n", (s->cmd), (s->buf), (s->flag));
+    //printf("cmd = 0x%x, buf = 0x%x, flag = 0x%x\n", (s->cmd), (s->buf), (s->flag));
     if (s->buf) { // use command
         switch(s->buf & 0x7F) {
         case 0x01:
-            printf("z0000101 set Seconds register 1\n");
+            printf("z0000101 set Seconds register 0\n");
             if (!s->write_prot)
                 s->sec_reg_0 = s->cmd;
             break;
@@ -120,7 +133,7 @@ static void handl_cmd(via_state *s)
             printf("Test register\n");
             break;
         case 0x35:
-            if ((s->cmd) & 0x40)
+            if ((s->cmd) & 0x40)//00110101
                 s->write_prot = 1;
             else s->write_prot = 0;
             printf("Write-protect register = %d\n", s->write_prot);
@@ -129,7 +142,7 @@ static void handl_cmd(via_state *s)
             if ((s->buf & 0x73) == 0x21 && !s->write_prot) { //z010aa01
                 s->rTCbuff[16 + ((s->buf & 0x0C) >> 2)] = s->cmd;
                 printf("z010aa01 rTCbuff[%d] = %d\n", 16 + ((s->buf & 0x0C) >> 2),s->rTCbuff[16 + ((s->buf & 0x0C) >> 2)]);
-            } else if ((s->buf & 0x43) == 0x41 && !s->write_prot) { //z1aaaa01
+            } else if ((s->buf & 0x43) == 0x41 && !s->write_prot) { //z1aaaa01 
                 s->rTCbuff[(s->buf & 0x3C) >> 2] = s->cmd;
                 printf("z1aaaa01 rTCbuff[%d] = %d\n", (s->buf & 0x3C) >> 2, s->rTCbuff[(s->buf & 0x3C) >> 2]);
             } else printf("Unknown command\n");
@@ -146,15 +159,19 @@ static void handl_cmd(via_state *s)
             switch(s->cmd & 0x7F) {
             case 0x01:
                 s->cmd = s->sec_reg_0;
+                m68k_set_irq_level(s->cpu, 0, 0x64 >> 2);
                 break;
             case 0x05:
                 s->cmd = s->sec_reg_1;
+                m68k_set_irq_level(s->cpu, 0, 0x64 >> 2);
                 break;
             case 0x09:
                 s->cmd = s->sec_reg_2;
+                m68k_set_irq_level(s->cpu, 0, 0x64 >> 2);
                 break;
             case 0x0d:
                 s->cmd = s->sec_reg_3;
+                m68k_set_irq_level(s->cpu, 0, 0x64 >> 2);
                 break;
             default:
                 if ((s->cmd & 0x73) == 0x21) { //z010aa01
@@ -201,10 +218,10 @@ static void via_set_regB(via_state *s, uint8_t val)
                 if (s->num < 8) {
                     (s->num)++;
                     if (s->num == 8) {
-                        printf("send cmd: %x finished\n", s->cmd);
+                        //printf("send cmd: %x finished\n", s->cmd);
                         s->num = 0;
                         s->cmd = 0;
-                        s->flag = 1;
+                        s->flag = 0;
                     }
                 } else qemu_log("ERROR NUM");
             }
@@ -284,10 +301,10 @@ void sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
     s->cmd = 0;
     s->buf = 0;
     s->write_prot = 0;
-    s->sec_reg_0 = 0x0A;
+    s->sec_reg_0 = 0xF0;
     s->sec_reg_1 = 0x1B;
     s->sec_reg_2 = 0x2C;
-    s->sec_reg_3 = 0x3D;
+    s->sec_reg_3 = 0x01;
     s->flag = 0;
     s->regs[vBufB] =  s->regs[vBufB] & 0x4;
     memory_region_init_io(&s->iomem, NULL, &via_ops, s,
@@ -304,7 +321,7 @@ void sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
 
     s->timer = timer_new_ns(rtc_clock, via_interrupt, s);
     int64_t now = qemu_clock_get_ns(rtc_clock);
-    timer_mod(s->timer, now + get_ticks_per_sec());
+    timer_mod(s->timer, now + get_ticks_per_sec() / speed);
 
     sy6522_reset(s);
 }

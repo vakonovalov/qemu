@@ -23,44 +23,48 @@ vBase   EQU $EFE1FE
 vBufB   EQU 512*0
 vDirB   EQU 512*2
 vDirA   EQU 512*3
+vBufA   EQU 512*15
 rTCData EQU 0
 rTCClk  EQU 1
 rTCEnb  EQU 2
 
 START:
-    move.l #$610000, sp
-    move.b #%10001101, d0
-    move.b #0, d2
-    bclr #rTCEnb ,(vBase+vBufB)
-    jsr write
-    move.b #0, d2  
-    move.b #%00001111, d0  
-    jsr write
-    move.b #0, d2  
-    move.b #%00110001, d0  
-    jsr write
-    move.b #0, d2  
-    move.b #%00101101, d0  
-    jsr write
-    move.b #0, d2
-    move.b #0, d0
-    jsr read
-
-;print
+    and.l #$EF, (vBase+vBufA) 
+    move.l #$10000, sp
+    move.l #pr, $64
+stp
+    stop #$2000
+    bra stp
+pr
+    move.l #0, d0
     move.l #$1A700, a0
-    move.l d0, d2
-    move.l #0, d4
+    move.b #%10001101, d0
+    jsr write
+    jsr read    
+    lsl.l #8, d0
+    move.b #%10001001, d0
+    jsr write
+    jsr read    
+    lsl.l #8, d0
+    move.b #%10000101, d0
+    jsr write
+    jsr read    
+    lsl.l #8, d0
+    move.b #%10000001, d0
+    jsr write
+    jsr read 
+    move.l #0, d2
 PR2: 
-    add.l #1, d4       
-    move.l d2, d1
+    add.l #1, d2
+    move.l d0, d1
     ANDi.l #$F0000000, d1
     rol.l #4, d1
-    ANDi.l #$0FFFFFFF, d2
-    lsl.l #4, d2
+    ANDi.l #$0FFFFFFF, d0
+    lsl.l #4, d0
     jsr PRINT
-    cmp.l #8, d4
+    cmp.l #8, d2
     bne PR2
-    bra qu
+    rte
 
 PRINT:
     muls #8, d1
@@ -86,42 +90,40 @@ PRINT:
     rts 
 
 write:
+    move.b #0, d2
+w:
     move.b d0, d1
     and.b #1, d1
     ;and.b #%11111110, d0
     lsr.b #1, d0
+    bclr #rTCClk, (vBase+vBufB)
     and.b #$FE, (vBase+vBufB)
     or.b d1, (vBase+vBufB)
     bset #rTCClk, (vBase+vBufB)
-    bclr #rTCClk, (vBase+vBufB)
     add.b #1, d2
     cmp #7, d2
-    ble write
+    ble w
     rts
 read:
+    move.b #0, d2
+    move.b #0, d0
+r:
     bclr #rTCData, (vBase+vBufB)
     bset #rTCClk, (vBase+vBufB)
     bclr #rTCClk, (vBase+vBufB)
-    move.b (vBase+vBufB), d1
+    move.b (vBase+vBufB),d1
     and.b #1, d1
     lsl.b d2, d1
     bclr d2, d0
     or.b d1, d0
     add.b #1, d2
     cmp #7, d2
-    ble read
+    ble r
     rts
 
 QU:
     bra qu
     END START
-
-
-
-
-
-
-
 
 *~Font name~Courier New~
 *~Font size~10~
