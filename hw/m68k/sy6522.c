@@ -43,6 +43,7 @@ enum
 #define RTCSEC_MASK 0x0C
 #define RTCRAMBUF1_MASK 0x3C
 #define RTCRAMBUF2_MASK 0x0C
+#define HOST_TO_MAC_RTC (66 * 365 + 17) * 24 * 3600
 
 typedef struct {
     qemu_irq irq;
@@ -117,7 +118,6 @@ static void rtc_cmd_handler_w(rtc_state *rtc, uint8_t val)
     else if (!(rtc->wr_pr_reg & 0x80)) {
         if ((rtc->cmd & ~RTCSEC_MASK) == 0x01) {
             rtc->sec_reg[(rtc->cmd & RTCSEC_MASK) >> 2] = rtc->param;
-            timer_mod_ns(rtc->timer, qemu_clock_get_ns(rtc_clock) + get_ticks_per_sec());
         } else if ((rtc->cmd & ~RTCRAMBUF1_MASK) == 0x41) {
             rtc->buf_RAM[(rtc->cmd & RTCRAMBUF1_MASK) >> 2] = rtc->param;
         } else if ((rtc->cmd & ~RTCRAMBUF2_MASK) == 0x21) {
@@ -259,7 +259,8 @@ static void rtc_interrupt(void * opaque)
 
 static void rtc_reset(rtc_state *rtc)
 {
-    uint64_t now = qemu_clock_get_ns(rtc_clock) / get_ticks_per_sec();
+    uint64_t now = qemu_clock_get_ns(rtc_clock) / get_ticks_per_sec() 
+                 + HOST_TO_MAC_RTC;
     uint8_t i;
     for (i = 0; i < 4; ++i) {
         rtc->sec_reg[i] = (now >> (8 * i)) & 0xFF;
@@ -272,7 +273,7 @@ static void rtc_init(void *opaque, qemu_irq irq)
 {
     rtc_state *rtc = (rtc_state *)opaque;
     rtc->irq = irq;
-    rtc->timer = timer_new_ms(rtc_clock, rtc_interrupt, rtc);
+    rtc->timer = timer_new_ns(rtc_clock, rtc_interrupt, rtc);
     rtc_reset(rtc);
 }
 
