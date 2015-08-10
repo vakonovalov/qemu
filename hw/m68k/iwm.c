@@ -5,6 +5,34 @@
 #include "hw/hw.h"
 #include "mac128k.h"
 
+enum
+{
+    CA0 = 0,
+    CA1 = 2,
+    CA2 = 4,
+    LSTRB = 6,
+    ENABLE = 8,
+    SELECT = 10,
+    Q6 = 12,
+    Q7 = 14,
+    IWM_REGS = 9
+};
+
+typedef struct {
+    uint8_t DIRTN;
+    uint8_t CSTIN;
+    uint8_t STEP;
+    uint8_t WRTPRT;
+    uint8_t MOTORON;
+    uint8_t TKO;
+    uint8_t EIECT;
+    uint8_t TACH;
+    uint8_t RDDATAO;
+    uint8_t RDDATA1;
+    uint8_t SIDES;
+    uint8_t DRVIN;
+} diskReg_state;
+
 typedef struct {
     M68kCPU *cpu;
     MemoryRegion iomem;
@@ -21,6 +49,8 @@ typedef struct {
     uint8_t SELECT; /* 0 - internal, 1 - external */
     uint8_t Q6;
     uint8_t Q7;
+    uint8_t regs[IWM_REGS];
+    diskReg_state disk;
 } iwm_state;
 
 static void iwm_writeb(void *opaque, hwaddr offset,
@@ -32,57 +62,10 @@ static void iwm_writeb(void *opaque, hwaddr offset,
         hw_error("Bad IWM write offset 0x%x", (int)offset);
     }
     qemu_log("iwm_write\n");
-    switch (offset)
-    {
-    case 0:
-    	s->CA0 = 0;
-    	break;
-    case 1:
-    	s->CA0 = 1;
-    	break;
-    case 2:
-    	s->CA1 = 0;
-    	break;
-    case 3:
-    	s->CA1 = 1;
-    	break;
-    case 4:
-    	s->CA2 = 0;
-    	break;
-    case 5:
-    	s->CA2 = 1;
-    	break;
-    case 6:
-    	s->LSTRB = 0;
-    	break;
-    case 7:
-    	s->LSTRB = 1;
-    	break;
-    case 8:
-    	s->ENABLE = 0;
-    	break;
-    case 9:
-    	s->ENABLE = 1;
-    	break;
-    case 10:
-    	s->SELECT = 0;
-    	break;
-    case 11:
-    	s->SELECT = 1;
-    	break;
-    case 12:
-    	s->Q6 = 0;
-    	break;
-    case 13:
-    	s->Q6 = 1;
-    	break;
-    case 14:
-    	s->Q7 = 0;
-    	break;
-    case 15:
-    	s->Q7 = 1;
-    	break;
-    }
+    s->regs[offset >> 1] = offset % 2;
+
+    printf("iwm_write offset=%x, regs[%x]=%x\n",
+          (int)offset, ((int)offset >> 1), s->regs[offset >> 1]);
 }
 
 static void iwm_writew(void *opaque, hwaddr offset,
@@ -99,19 +82,19 @@ static void iwm_writel(void *opaque, hwaddr offset,
 
 static uint32_t iwm_readb(void *opaque, hwaddr offset)
 {
-	iwm_writeb(opaque, offset, 0);
+	//iwm_writeb(opaque, offset, 0);
 	return 0;
 }
 
 static uint32_t iwm_readw(void *opaque, hwaddr offset)
 {
-	iwm_writeb(opaque, offset, 0);
+	//iwm_writeb(opaque, offset, 0);
 	return 0;
 }
 
 static uint32_t iwm_readl(void *opaque, hwaddr offset)
 {
-	iwm_writeb(opaque, offset, 0);
+	//iwm_writeb(opaque, offset, 0);
 	return 0;
 }
 
@@ -145,4 +128,7 @@ void iwm_init(MemoryRegion *sysmem, uint32_t base, M68kCPU *cpu)
     s->Q6 = 1;
     s->Q7 = 0;
     s->cpu = cpu;
+
+    s->ENABLE = 0;
+    s->SELECT = 0;
 }
