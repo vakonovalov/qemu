@@ -16,39 +16,33 @@ rTCEnb  EQU 2
 count EQU $605000
 bits  EQU $606000
 data  EQU $607000
-  
+
     move.l #133,  d0
     move.l #10, d6
     move.l #0,  d1
-    move.l #1,  d2
-    move.l #24, d3
+    move.l #8,  d2
+    move.l #7, d3
     move.l #31, d4
-    
+   *move.l #0, d2
 cmd:
-    move.l #8, d5
     move.l d0, d1
-    lsl.l d3, d1
-    lsr.l d4, d1
-    sub.l d2, d5
-    lsl.l d5, d1
+    lsr.l d3, d1
+    and.l #$1, d1
     cmp #0, d1
     beq clr
-    
-    bset #rTCData, (vBase+vBufB)
+    bset.b #rTCData, (vBase+vBufB)
     bra clk
 clr:
-    bclr #rTCData, (vBase+vBufB)
+    bclr.b #rTCData, (vBase+vBufB)
     bra clk
 clk:
-    bset #rTCClk, (vBase+vBufB)
-    bclr #rTCClk, (vBase+vBufB)
-
-    add.l #1, d3
-    cmp #8, d2
+    bset.b #rTCClk, (vBase+vBufB)
+    bclr.b #rTCClk, (vBase+vBufB)
+    sub.l #1, d2
+    sub.l #1, d3
+    cmp #0, d2
     beq init
-    add.l #1, d2
-    bra cmd
-
+    bra cmd
 init:
     move.l #0,  d1
     move.l #1,  d2
@@ -58,9 +52,10 @@ init:
     move.l d0,  d7
     move.l #8,  (count)
     move.l #7,  (bits)
-    lsr.l #7,   d7
+    lsr.l  #7,   d7
     cmp #1,     d7
-    beq read    
+    move.l #0, d7
+    beq read
 
 write:
     move.l #8, d5
@@ -71,69 +66,56 @@ write:
     lsl.l d5, d1
     cmp #0, d1
     beq clr1
-    bset #rTCData, (vBase+vBufB)
+    bset.b #rTCData, (vBase+vBufB)
     bra clk1
 clr1:
-    bclr #rTCData, (vBase+vBufB)
+    bclr.b #rTCData, (vBase+vBufB)
     bra clk1
 clk1:
-    bset #rTCClk, (vBase+vBufB)
-    bclr #rTCClk, (vBase+vBufB)
+    bset.b #rTCClk, (vBase+vBufB)
+    bclr.b #rTCClk, (vBase+vBufB)
     add.l #1, d3
     cmp #8, d2
     beq exit
     add.l #1, d2
     bra write
 
-read:
-    
-    move.l (count), d5
-    move.l d6, d1
-    lsl.l d3, d1
-    lsr.l d4, d1
-    sub.l d2, d5
-    lsl.l d5, d1
-    cmp #0, d1
-    beq clr2
-    bset #rTCData, (vBase+vBufB)   
-    bra clk2
-clr2:
-    bclr #rTCData, (vBase+vBufB)
-    bra clk2
-clk2:
-    bset #rTCClk, (vBase+vBufB)
-    bclr #rTCClk, (vBase+vBufB)
-    move.l (bits), d5
-    move.l (vBase+vBufB), d7
-    and.l #$1, d7
-    lsr.l d5, d7    
-    *or.b (vBase+vBufB), d7
-    lsl.l d5, d7
-    sub.l #1, (bits)
-    add.l #1, d3
+read: 
+    bset.b #rTCClk, (vBase+vBufB)
+    bclr.b #rTCClk, (vBase+vBufB)
+    move.b (vBase+vBufB), d0
+    and.l #$1, d0
+    lsl.l #1, d7
+    or.b d0, d7
+    add.l #1, d2
     cmp #8, d2
     beq init2
-    add.l #1, d2
     bra read
 
 init2:
-    move.l d7, (a1)
     move.l #28, d3
     move.l #28, d5
+    move.l #$1A700, a0
     move.l #0, d6
+    move.l a1, d1    
+    move.l #$1A700, a2 
+    move.l #0, d4
+*ls:
+ *    add.l #1, d4
+  *   cmp.l #10000, d4
+   *  ble ls
 
 shift:
-    move.l #$1A700, a0
-    move.l (a1),d2
-    move.l d3, d4
-    lsl.l d3, d2
+    move.l d7, d2
+    add.l #1, d6
+    lsr.l d3, d2
+    lsl.l d5, d2
     lsr.l d5, d2
-    sub #4, d3 
-    add #1, d6
     cmp #8, d6
-    beq exit
+    bgt exit
+    sub #4, d3 
     bra check 
-    
+
 check:
     cmp #0, d2
     beq draw0
@@ -167,34 +149,38 @@ check:
     beq drawE
     cmp #15, d2
     beq drawF
-    
+
 draw0:   
+    add.l #1, a2
+    move.l a2,a0
     move.b #%00000000, (a0)
-    add.l #65, a0
-    move.b #%01111110, (a0)
-    add.l #64, a0
-    move.b #%10000001, (a0)
-    add.l #64, a0
-    move.b #%10000001, (a0)
-    add.l #64, a0
-    move.b #%10000001, (a0)
-    add.l #64, a0
-    move.b #%10000001, (a0)
-    add.l #64, a0
-    move.b #%10000001, (a0)
-    add.l #64, a0
-    move.b #%10000001, (a0)
-    add.l #64, a0
-    move.b #%10000001, (a0)
-    add.l #64, a0
-    move.b #%10000001, (a0)
-    add.l #64, a0
-    move.b #%10000001, (a0)
     add.l #64, a0
     move.b #%01111110, (a0)
-    add.l #1, a0    
+    add.l #64, a0
+    move.b #%10000001, (a0)
+    add.l #64, a0
+    move.b #%10000001, (a0)
+    add.l #64, a0
+    move.b #%10000001, (a0)
+    add.l #64, a0
+    move.b #%10000001, (a0)
+    add.l #64, a0
+    move.b #%10000001, (a0)
+    add.l #64, a0
+    move.b #%10000001, (a0)
+    add.l #64, a0
+    move.b #%10000001, (a0)
+    add.l #64, a0
+    move.b #%10000001, (a0)
+    add.l #64, a0
+    move.b #%10000001, (a0)
+    add.l #64, a0
+    move.b #%01111110, (a0)
     bra shift
+
 draw1:
+    add.l #1, a2
+    move.l a2,a0
     move.b #%00000000, (a0)
     add.l #64, a0
     move.b #%00000100, (a0)
@@ -218,9 +204,11 @@ draw1:
     move.b #%00000100, (a0)
     add.l #64, a0
     move.b #%00000100, (a0)
-    add.l #64, a0
     bra shift
+
 draw2:
+    add.l #1, a2
+    move.l a2,a0
     move.b #%00000000, (a0)
     add.l #64, a0
     move.b #%01111110, (a0)
@@ -244,9 +232,11 @@ draw2:
     move.b #%01000000, (a0)
     add.l #64, a0
     move.b #%01111110, (a0)
-    add.l #64, a0
     bra shift
+
 draw3:
+    add.l #1, a2
+    move.l a2,a0
     move.b #%00000000, (a0)
     add.l #64, a0
     move.b #%01111110, (a0)
@@ -270,9 +260,11 @@ draw3:
     move.b #%00000010, (a0)
     add.l #64, a0
     move.b #%01111110, (a0)
-    add.l #64, a0    
     bra shift
+
 draw4:
+    add.l #1, a2
+    move.l a2,a0
     move.b #%00000000, (a0)
     add.l #64, a0
     move.b #%01000010, (a0)
@@ -296,9 +288,11 @@ draw4:
     move.b #%00000010, (a0)
     add.l #64, a0
     move.b #%00000010, (a0)
-    add.l #64, a0
     bra shift
+
 draw5:
+    add.l #1, a2
+    move.l a2,a0
     move.b #%00000000, (a0)
     add.l #64, a0
     move.b #%01111110, (a0)
@@ -322,9 +316,11 @@ draw5:
     move.b #%00000010, (a0)
     add.l #64, a0
     move.b #%01111110, (a0)
-    add.l #64, a0
     bra shift
+
 draw6:
+    add.l #1, a2
+    move.l a2,a0
     move.b #%00000000, (a0)
     add.l #64, a0
     move.b #%01111110, (a0)
@@ -348,9 +344,11 @@ draw6:
     move.b #%01000010, (a0)
     add.l #64, a0
     move.b #%01111110, (a0)
-    add.l #64, a0
     bra shift
+
 draw7:
+    add.l #1, a2
+    move.l a2,a0
     move.b #%00000000, (a0)
     add.l #64, a0
     move.b #%011111100, (a0)
@@ -374,9 +372,11 @@ draw7:
     move.b #%00000010, (a0)
     add.l #64, a0
     move.b #%00000010, (a0)
-    add.l #64, a0
     bra shift
+
 draw8:
+    add.l #1, a2
+    move.l a2,a0
     move.b #%00000000, (a0)
     add.l #64, a0
     move.b #%01111110, (a0)
@@ -400,9 +400,11 @@ draw8:
     move.b #%01000010, (a0)
     add.l #64, a0
     move.b #%01111110, (a0)
-    add.l #64, a0    
     bra shift
+
 draw9:
+    add.l #1, a2
+    move.l a2,a0
     move.b #%00000000, (a0)
     add.l #64, a0
     move.b #%01111110, (a0)
@@ -426,9 +428,11 @@ draw9:
     move.b #%00000010, (a0)
     add.l #64, a0
     move.b #%01111110, (a0)
-    add.l #64, a0    
     bra shift
+
 drawA:
+    add.l #1, a2
+    move.l a2,a0
     move.b #%00000000, (a0)
     add.l #64, a0
     move.b #%00111100, (a0)
@@ -452,9 +456,11 @@ drawA:
     move.b #%01000010, (a0)
     add.l #64, a0
     move.b #%01000010, (a0)
-    add.l #64, a0
     bra shift
+
 drawB:
+    add.l #1, a2
+    move.l a2,a0
     move.b #%00000000, (a0)
     add.l #64, a0
     move.b #%01111100, (a0)
@@ -478,9 +484,11 @@ drawB:
     move.b #%01000010, (a0)
     add.l #64, a0
     move.b #%01111100, (a0)
-    add.l #64, a0
     bra shift
+
 drawC:
+    add.l #1, a2
+    move.l a2,a0
     move.b #%00000000, (a0)
     add.l #64, a0
     move.b #%00011100, (a0)
@@ -504,9 +512,11 @@ drawC:
     move.b #%00100000, (a0)
     add.l #64, a0
     move.b #%00011100, (a0)
-    add.l #64, a0
     bra shift
+
 drawD:
+    add.l #1, a2
+    move.l a2,a0
     move.b #%00000000, (a0)
     add.l #64, a0
     move.b #%01111000, (a0)
@@ -530,9 +540,11 @@ drawD:
     move.b #%01000100, (a0)
     add.l #64, a0
     move.b #%01111111, (a0)
-    add.l #64, a0    
     bra shift
+
 drawE:
+    add.l #1, a2
+    move.l a2,a0
     move.b #%00000000, (a0)
     add.l #64, a0
     move.b #%01111110, (a0)
@@ -556,9 +568,11 @@ drawE:
     move.b #%01000000, (a0)
     add.l #64, a0
     move.b #%01111100, (a0)
-    add.l #64, a0
     bra shift
+
 drawF:
+    add.l #1, a2
+    move.l a2,a0
     move.b #%00000000, (a0)
     add.l #64, a0
     move.b #%01111110, (a0)
@@ -582,12 +596,18 @@ drawF:
     move.b #%01000000, (a0)
     add.l #64, a0
     move.b #%01000000, (a0)
-    add.l #64, a0
     bra shift
-
 exit:
     bra exit
     END    START      
+
+
+
+
+
+
+
+
 
 
 

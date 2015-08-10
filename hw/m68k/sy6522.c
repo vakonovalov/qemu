@@ -48,6 +48,9 @@ typedef struct {
     uint8_t RAM[20];
     uint8_t cmd;
     uint8_t data;
+    int is_dec;
+    int mxvalue;
+    int step;
     bool    command;
     uint8_t bits;
     uint8_t count;
@@ -61,6 +64,7 @@ typedef struct {
     MemoryRegion iomem;
     MemoryRegion rom;
     MemoryRegion ram;
+    QEMUTimer *timer;
     /* base address */
     target_ulong base;
     /* registers */
@@ -178,7 +182,7 @@ static uint8_t RTC_clock_tics(RTC_clock *s, uint8_t val)
                         uint8_t data;
                         data = ((s->seconds1>>s->count) & 0x1) | (val & 0xfe);
                         s->count--;
-                         printf("send = %d\n", data & 0x1);
+                        printf("send = %d\n", data & 0x1);
                         s->bits++;
                         return data;
                     }
@@ -418,6 +422,38 @@ static void sy6522_reset(void *opaque)
     via_set_regA(s, V_OVERLAY_MASK);
 }
 
+
+static void timer_interrupt(void * opaque)
+{
+    via_state *s = (via_state *)opaque;    
+   
+    if (s->clk->seconds1 >= s->clk->mxvalue)
+    {
+        s->clk->is_dec = 1;
+    } 
+    else if (s->clk->seconds1 <= 0)
+    {
+        s->clk->is_dec = 0;
+    }
+
+    if (s->clk->is_dec==1) 
+         {
+             s->clk->seconds1 = s->clk->seconds1 - s->clk->step;
+             int64_t now = qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
+             timer_mod(s->timer, now + get_ticks_per_sec());
+             //qemu_log("Timer_mod value=%d\n", s->clk->value);
+         }
+    else if(s->clk->is_dec==0)
+     {
+             s->clk->seconds1 = s->clk->seconds1 + s->clk->step;  
+             int64_t now = qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
+             timer_mod(s->timer, now + get_ticks_per_sec());
+            // qemu_log("Timer_mod value=%d\n", s->clk->value); 
+     }  
+
+   m68k_set_irq_level(s->cpu, 1, 25);
+}
+
 void sy6522_init(MemoryRegion *rom, MemoryRegion *ram,  uint32_t base, M68kCPU *cpu)
 {
     via_state *s;
@@ -429,18 +465,23 @@ void sy6522_init(MemoryRegion *rom, MemoryRegion *ram,  uint32_t base, M68kCPU *
     s->clk->flag = 0;
     s->clk->count = 7;
     s->clk->lock = 1;
-    s->clk->seconds1 = 1;
+    s->clk->seconds1 = 4;
     s->base = base;
     s->cpu = cpu;
+    s->clk->step = 1;
+    s->clk->mxvalue = 10;
+    s->clk->is_dec = 1;
     memory_region_init_io(&s->iomem, NULL, &via_ops, s, "sy6522 via", 0x2000);
-    memory_region_add_subregion(get_system_memory(),
-                                base & TARGET_PAGE_MASK, &s->iomem);
+    memory_region_add_subregion(get_system_memory(), base & TARGET_PAGE_MASK, &s->iomem);
     /* TODO: Magic! */
     memory_region_init_alias(&s->rom, NULL, "ROM overlay", rom, 0x0, 0x10000);
     memory_region_set_readonly(&s->rom, true);
     memory_region_init_alias(&s->ram, NULL, "RAM overlay", ram, 0x0, 0x20000);
 
     qemu_register_reset(sy6522_reset, s);
+    s->timer = timer_new_ns(QEMU_CLOCK_REALTIME, timer_interrupt, s);
+    int64_t now = qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
+    timer_mod(s->timer, now + get_ticks_per_sec());
 
     sy6522_reset(s);
 }

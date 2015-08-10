@@ -475,7 +475,20 @@ exit:
 
 
 
-
+*move.l (count), d5
+    *move.l d6, d1
+    *lsl.l d3, d1
+    *lsr.l d4, d1
+    *sub.l d2, d5
+    *lsl.l d5, d1
+    *cmp #0, d1
+    *beq clr2
+    *bset #rTCData, (vBase+vBufB)   
+    *bra clk2
+*clr2:
+    *bclr #rTCData, (vBase+vBufB)
+    *bra clk2
+*clk2:
 
 
 
