@@ -189,6 +189,35 @@ static void via_set_regBbuf(via_state *s, uint8_t val)
     s->regs[vBufB] = val;
 }
 
+static void via_set_reg_vIFR(via_state *s, uint8_t val)
+{
+    bool IRQ_set;
+    uint8_t aux = val;
+
+    aux = aux & 0x7f;
+    IRQ_set = aux & s->regs[vIER];
+    s->regs[vIFR] = (IRQ_set << 7) | aux;
+
+    if (IRQ_set) m68k_set_irq_level(s->cpu,1,0x64 >> 2);
+    else m68k_set_irq_level(s->cpu,0,0x64 >> 2);
+
+    printf("vIFR = %x\n",s->regs[vIFR]);
+}
+
+static void via_set_reg_vIER(via_state *s, uint8_t val)
+{
+    uint8_t aux;
+
+    if (val & 0x80) {
+        s->regs[vIER] |= val;
+    } else {
+        aux = ~val;
+        s->regs[vIER] &= aux;
+    }
+
+    printf("vIER = %x\n",s->regs[vIER]);
+}
+
 static void via_writeb(void *opaque, hwaddr offset,
                               uint32_t value)
 {
@@ -207,6 +236,12 @@ static void via_writeb(void *opaque, hwaddr offset,
         break;
     case vDirB:
         via_set_regBdir(s, value);
+        break;
+    case vIFR:
+        via_set_reg_vIFR(s, value);
+        break;
+    case vIER:
+        via_set_reg_vIER(s, value);
         break;
     }
 }
@@ -281,7 +316,7 @@ static void set_rtc_irq(void *opaque, int irq, int level)
 {
     via_state *s = (via_state *)opaque;
     if (irq == 0) {
-        m68k_set_irq_level(s->cpu, level, 0x64 >> 2); 
+        via_set_reg_vIFR(s, s->regs[vIFR] | 0x01); 
     }
 }
 
@@ -292,6 +327,7 @@ static void sy6522_reset(void *opaque)
     via_set_regAbuf(s, REGA_OVERLAY_MASK);
     via_set_regBbuf(s, 0);
     via_set_regBdir(s, 0);
+    via_set_reg_vIER(s, 0xff);
     rtc_param_reset(&s->rtc);
 }
 
