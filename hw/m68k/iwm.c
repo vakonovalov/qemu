@@ -4,6 +4,7 @@
 
 #include "hw/hw.h"
 #include "mac128k.h"
+#include "sy6522.h"
 
  #define SEL_MASK (1 << 5)
 
@@ -48,8 +49,6 @@ static void iwm_writeb(void *opaque, hwaddr offset,
                               uint32_t value)
 {
     iwm_state *s = (iwm_state *)opaque;
-    uint8_t q = sel_check(1);
-    q++;
     offset = (offset - (s->base & ~TARGET_PAGE_MASK)) >> 9;
     if (offset > 0xF) {
         hw_error("Bad IWM write offset 0x%x", (int)offset);
@@ -117,7 +116,7 @@ static const MemoryRegionOps iwm_ops = {
 void iwm_init(MemoryRegion *sysmem, uint32_t base, M68kCPU *cpu)
 {
     iwm_state *s;
-
+    via_state *r;
     s = (iwm_state *)g_malloc0(sizeof(iwm_state));
 
     s->base = base;
