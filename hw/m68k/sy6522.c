@@ -198,21 +198,21 @@ static void via_set_reg_vIFR(via_state *s, uint8_t val)
     IRQ_set = aux & s->regs[vIER];
     s->regs[vIFR] = (IRQ_set << 7) | aux;
 
-    if (IRQ_set) m68k_set_irq_level(s->cpu,1,0x64 >> 2);
-    else m68k_set_irq_level(s->cpu,0,0x64 >> 2);
+    if (IRQ_set) {
+        m68k_set_irq_level(s->cpu,1,0x64 >> 2);
+    } else {
+        m68k_set_irq_level(s->cpu,0,0x64 >> 2);
+    }
 
     printf("vIFR = %x\n",s->regs[vIFR]);
 }
 
 static void via_set_reg_vIER(via_state *s, uint8_t val)
 {
-    uint8_t aux;
-
     if (val & 0x80) {
         s->regs[vIER] |= val;
     } else {
-        aux = ~val;
-        s->regs[vIER] &= aux;
+        s->regs[vIER] &= ~val;
     }
 
     printf("vIER = %x\n",s->regs[vIER]);
