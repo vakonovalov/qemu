@@ -36,6 +36,7 @@ enum
 };
 
 #define REGA_OVERLAY_MASK (1 << 4)
+#define REGA_SEL_MASK (1 << 5)
 #define REGB_RTCDATA_MASK (1 << 0)
 #define REGB_RTCCLK_MASK (1 << 1)
 #define REGB_RTCENB_MASK (1 << 2)
@@ -198,6 +199,7 @@ static void via_writeb(void *opaque, hwaddr offset,
         hw_error("Bad VIA write offset 0x%x", (int)offset);
     }
     qemu_log("via_write offset=0x%x value=0x%x\n", (int)offset, value);
+    printf("via_write offset=0x%x value=0x%x\n", (int)offset, value);
     switch (offset) {
     case vBufA:
         via_set_regAbuf(s, value);
@@ -221,6 +223,7 @@ static uint32_t via_readb(void *opaque, hwaddr offset)
     }
     ret = s->regs[offset];
     qemu_log("via_read offset=0x%x val=0x%x\n", (int)offset, ret);
+    //printf("via_read offset=0x%x val=0x%x\n", (int)offset, ret);
     return ret;
 }
 
