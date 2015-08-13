@@ -97,6 +97,7 @@ static void mac128k_init(MachineState *machine)
     MemoryRegion *address_space_mem = get_system_memory();
     MemoryRegion *ram = g_new(MemoryRegion, 1);
     MemoryRegion *rom = g_new(MemoryRegion, 1);
+	via_state *via = g_malloc0(sizeof(via_state));
     mac_display *display = (mac_display *)g_malloc0(sizeof(mac_display));
 
     if (!cpu_model) {
@@ -117,8 +118,8 @@ static void mac128k_init(MachineState *machine)
     memory_region_add_subregion(address_space_mem, ROM_LOAD_ADDR, rom);
     memory_region_set_readonly(rom, true);
 
-    iwm_init(address_space_mem, IWM_BASE_ADDR, cpu);
-    sy6522_init(rom, ram, VIA_BASE_ADDR, cpu);
+	iwm_init(address_space_mem, IWM_BASE_ADDR, cpu, via);
+    sy6522_init(rom, ram, VIA_BASE_ADDR, cpu, via);
 
     /* Display */
     display->con = graphic_console_init(NULL, 0, &mac_display_ops, display);

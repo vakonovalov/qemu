@@ -47,7 +47,6 @@ typedef struct {
     rtc_state rtc;
 } via_state;
 
-//struct via_state;
-//uint8_t sel_check(via_state *s);
+via_state via;
 
 #endif 

@@ -11,7 +11,6 @@
 #include "qemu/timer.h"
 #include "exec/address-spaces.h"
 #include "mac128k.h"
-#include "sy6522.h"
 #include "sysemu/sysemu.h"
 #include "hw/irq.h"
 
@@ -25,16 +24,6 @@
 #define RTCRAMBUF1_MASK 0x3C
 #define RTCRAMBUF2_MASK 0x0C
 #define HOST_TO_MAC_RTC (66 * 365 + 17) * 24 * 3600
-
-/*uint8_t sel_check(via_state *s)
-{
-    if (s->regs[vBufA] & REGA_SEL_MASK) {
-        return 1;
-    } else {
-        return 0;
-    }
-    return 0;
-}*/
 
 static void via_set_regAbuf(via_state *s, uint8_t val)
 {
@@ -61,6 +50,7 @@ static void via_set_regAbuf(via_state *s, uint8_t val)
     /* TODO: other bits */
 
     s->regs[vBufA] = val;
+
 }
 
 static void via_set_regBdir(via_state *s, uint8_t val)
@@ -264,12 +254,11 @@ static void sy6522_reset(void *opaque)
 }
 
 void sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
-                 uint32_t base, M68kCPU *cpu)
+                 uint32_t base, M68kCPU *cpu, via_state *s)
 {
-    via_state *s;
     qemu_irq *pic;
 
-    s = (via_state *)g_malloc0(sizeof(via_state));
+    //via = (via_state *)g_malloc0(sizeof(via_state));
     pic = qemu_allocate_irqs(set_rtc_irq, s, 1);
 
     s->base = base;
