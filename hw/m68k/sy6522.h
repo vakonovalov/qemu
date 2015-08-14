@@ -1,6 +1,8 @@
 #ifndef LALALA
 #define LALALA
 
+#include "mac128k.h"
+
 /* register offsets */
 enum
 {
@@ -35,7 +37,7 @@ typedef struct {
     QEMUTimer *timer;
 } rtc_state;
 
-typedef struct {
+typedef struct via_state {
     M68kCPU *cpu;
     MemoryRegion iomem;
     MemoryRegion rom;
@@ -46,8 +48,5 @@ typedef struct {
     uint8_t regs[VIA_REGS];
     rtc_state rtc;
 } via_state;
-
-//struct via_state;
-//uint8_t sel_check(via_state *s);
 
 #endif 
