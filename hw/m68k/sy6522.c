@@ -45,7 +45,7 @@ enum
 #define RTCRAMBUF2_MASK 0x0C
 #define HOST_TO_MAC_RTC (66 * 365 + 17) * 24 * 3600
 
-typedef struct {
+typedef struct rtc_state {
     qemu_irq irq;
     uint8_t count;
     uint8_t rw_flag;
@@ -58,7 +58,7 @@ typedef struct {
     QEMUTimer *timer;
 } rtc_state;
 
-typedef struct {
+typedef struct via_state {
     M68kCPU *cpu;
     MemoryRegion iomem;
     MemoryRegion rom;
@@ -69,6 +69,8 @@ typedef struct {
     uint8_t regs[VIA_REGS];
     rtc_state rtc;
 } via_state;
+
+via_state *via;
 
 static void via_set_regAbuf(via_state *s, uint8_t val)
 {
@@ -218,6 +220,20 @@ static void via_set_reg_vIER(via_state *s, uint8_t val)
     printf("vIER = %x\n",s->regs[vIER]);
 }
 
+void via_set_reg_vSR(via_state *s, uint8_t val)
+{
+    s->regs[vSR] = val;
+    via_set_reg_vIFR(s, s->regs[vIFR] | 0x04);
+    printf("Write vSR = %x\n",s->regs[vIER]);
+}
+
+uint8_t via_read_reg_vSR(via_state *s) 
+{
+    via_set_reg_vIFR(s, s->regs[vIFR] | 0x04);
+    printf("Read vSR = %x\n",s->regs[vIER]);
+    return s->regs[vSR];
+}
+
 static void via_writeb(void *opaque, hwaddr offset,
                               uint32_t value)
 {
@@ -236,6 +252,9 @@ static void via_writeb(void *opaque, hwaddr offset,
         break;
     case vDirB:
         via_set_regBdir(s, value);
+        break;
+    case vSR:
+        via_set_reg_vSR(s, value);
         break;
     case vIFR:
         via_set_reg_vIFR(s, value);
@@ -355,4 +374,5 @@ void sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
 
     qemu_register_reset(sy6522_reset, s);
     sy6522_reset(s);
+    via = s;
 }
