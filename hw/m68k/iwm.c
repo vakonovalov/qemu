@@ -144,5 +144,5 @@ void iwm_init(MemoryRegion *sysmem, uint32_t base, M68kCPU *cpu, via_state *via)
 
     s->regs[ENABLE] = 0;
     s->regs[SELECT] = 0;
-    s->SEL_bit = &via->regs[vBufA];
+    s->SEL_bit = ret_reg(via, vBufA);
 }

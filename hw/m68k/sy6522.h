@@ -1,7 +1,6 @@
 #ifndef LALALA
 #define LALALA
 
-/* register offsets */
 enum
 {
     vBufB = 0,
@@ -22,29 +21,6 @@ enum
     VIA_REGS = 16
 };
 
-typedef struct {
-    qemu_irq irq;
-    uint8_t count;
-    uint8_t rw_flag;
-    uint8_t cmd;
-    uint8_t param;
-    uint8_t sec_reg[4]; 
-    uint8_t test_reg;
-    uint8_t wr_pr_reg;
-    uint8_t buf_RAM[20];
-    QEMUTimer *timer;
-} rtc_state;
-
-typedef struct via_state {
-    M68kCPU *cpu;
-    MemoryRegion iomem;
-    MemoryRegion rom;
-    MemoryRegion ram;
-    /* base address */
-    target_ulong base;
-    /* registers */
-    uint8_t regs[VIA_REGS];
-    rtc_state rtc;
-} via_state;
+uint8_t *ret_reg(via_state *via, uint8_t offset);
 
 #endif 
