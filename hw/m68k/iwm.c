@@ -4,9 +4,9 @@
 
 #include "hw/hw.h"
 #include "mac128k.h"
+#include "sy6522.h"
 
 #define SEL_MASK (1 << 5)
-#define vBufA 15
 
 typedef struct via_state via_state;
 
@@ -71,7 +71,6 @@ static void iwm_writeb(void *opaque, hwaddr offset,
     }
     qemu_log("iwm_write\n");
     set_reg(s, offset);
-    printf("%x\n", *s->SEL_bit);
     printf("iwm_write offset=%x, regs[%x]=%x\n",
           (int)offset, ((int)offset >> 1), s->regs[offset >> 1]);
 }

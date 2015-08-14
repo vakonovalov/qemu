@@ -1,8 +1,6 @@
 #ifndef LALALA
 #define LALALA
 
-#include "mac128k.h"
-
 /* register offsets */
 enum
 {
