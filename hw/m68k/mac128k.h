@@ -11,6 +11,6 @@ void sy6522_init(MemoryRegion *rom, MemoryRegion *ram, uint32_t base, M68kCPU *c
 
 void keyboard_init(void);
 
-void via_set_reg_vSR(via_state *s, uint8_t val);
+//void via_set_reg_vSR(via_state *s, uint8_t val);
 
 #endif

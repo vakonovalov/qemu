@@ -315,6 +315,7 @@ void qemu_input_event_send(QemuConsole *src, InputEvent *evt)
 
     /* send event */
     s = qemu_input_find_handler(1 << evt->kind, src);
+    printf("handler %p\n", s);
     if (!s) {
         return;
     }

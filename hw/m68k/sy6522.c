@@ -220,20 +220,20 @@ static void via_set_reg_vIER(via_state *s, uint8_t val)
     printf("vIER = %x\n",s->regs[vIER]);
 }
 
-void via_set_reg_vSR(via_state *s, uint8_t val)
+static void via_set_reg_vSR(via_state *s, uint8_t val)
 {
     s->regs[vSR] = val;
-    via_set_reg_vIFR(s, s->regs[vIFR] | 0x04);
+//    via_set_reg_vIFR(s, s->regs[vIFR]  0x04);
     printf("Write vSR = %x\n",s->regs[vIER]);
 }
-
-uint8_t via_read_reg_vSR(via_state *s) 
+/*
+static uint8_t via_read_reg_vSR(via_state *s) 
 {
-    via_set_reg_vIFR(s, s->regs[vIFR] | 0x04);
+//    via_set_reg_vIFR(s, s->regs[vIFR] | 0x04);
     printf("Read vSR = %x\n",s->regs[vIER]);
     return s->regs[vSR];
 }
-
+*/
 static void via_writeb(void *opaque, hwaddr offset,
                               uint32_t value)
 {
