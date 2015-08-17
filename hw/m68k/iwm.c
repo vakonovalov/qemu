@@ -35,7 +35,7 @@ enum
     RDDATA1 = 9,
     SIDES   = 12,
     DRVIN   = 15,
-    IWM_REGS = 8
+    IWM_REGS = 16
 };
 
 typedef struct {
@@ -45,47 +45,55 @@ typedef struct {
     target_ulong base;
     via_state *via;
     uint8_t bits[IWM_BITS];
-    uint8_t regs[], ;
+    uint8_t regs[IWM_REGS];
 } iwm_state;
 
 static void cmd_handw(iwm_state *s)
 {
     uint8_t SEL = ret_reg(s->via, vBufA);
     if (!SEL) {
-        if (s->regs[CA0]) {
-            if (s->regs[CA1]) {
-                s->disk.EIECT = s->regs[CA2];
+        if (s->bits[CA0]) {
+            if (s->bits[CA1]) {
+                s->regs[EIECT] = s->regs[CA2];
             } else {
-                s->disk.STEP = s->regs[CA2];
+                s->regs[STEP] = s->regs[CA2];
             }
         } else {
-            if (s->regs[CA1]) {
-                s->disk.MOTORON = s->regs[CA2];
+            if (s->bits[CA1]) {
+                s->regs[MOTORON] = s->regs[CA2];
             } else {
-                s->disk.DIRTN = s->regs[CA2];
+                s->regs[DIRTN] = s->regs[CA2];
             }
         }
     }
 }
 
-static void cmd_handr(iwm_state *s, hwaddr offset)
+static void cmd_handr(iwm_state *s)
 {
     uint8_t SEL = ret_reg(s->via, vBufA);
+    uint8_t cmd = 0;
+    cmd |= s->bits[CA2];
+    cmd <<= 1;
+    cmd |= s->bits[CA1];
+    cmd <<= 1;
+    cmd |= s->bits[CA0];
+    cmd <<= 1;
+    cmd |= s->bits[SEL];
 
-
-
+	s->bits[Q7] = s->regs[cmd];
+    s->bits[Q7] <<= 7;
 }
 
 static void set_reg(iwm_state *s, hwaddr offset)
 {
-    uint8_t old = s->regs[offset >> 1];
+    uint8_t old = s->bits[offset >> 1];
     uint8_t new = offset % 2;
 
     if (!(old & REGA_SEL_MASK) && (new & REGA_SEL_MASK)) {
         cmd_handw(s);
     }
 
-    s->regs[offset >> 1] = new;
+    s->bits[offset >> 1] = new;
 }
 
 static void iwm_writeb(void *opaque, hwaddr offset,
@@ -112,10 +120,10 @@ static uint32_t iwm_readb(void *opaque, hwaddr offset)
     qemu_log("iwm_read\n");
     // printf("iwm_read offset=%x, regs[%x]=%x\n",
     //       (int)offset, ((int)offset >> 1), s->regs[offset >> 1]);
-    if (s->regs[Q6]) {
-        cmd_handr(s, offset);
+    if (s->bits[Q6]) {
+        cmd_handr(s);
     }
-    return s->regs[offset >> 1];
+    return s->bits[offset >> 1];
 }
 
 static void iwm_writew(void *opaque, hwaddr offset,
@@ -161,10 +169,10 @@ static const MemoryRegionOps iwm_ops = {
 static void iwm_reset(void *opaque)
 {
     iwm_state *s = opaque;
-    s->regs[Q6] = 1;
-    s->regs[Q7] = 0;
-    s->regs[ENABLE] = 0;
-    s->regs[SELECT] = 0;
+    s->bits[Q6] = 1;
+    s->bits[Q7] = 0;
+    s->bits[ENABLE] = 0;
+    s->bits[SELECT] = 0;
 }
 
 void iwm_init(MemoryRegion *sysmem, uint32_t base, M68kCPU *cpu, via_state *via)
