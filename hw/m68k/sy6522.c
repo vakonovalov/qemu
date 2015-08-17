@@ -16,7 +16,6 @@
 #include "sy6522.h"
 
 #define REGA_OVERLAY_MASK (1 << 4)
-#define REGA_SEL_MASK (1 << 5)
 #define REGB_RTCDATA_MASK (1 << 0)
 #define REGB_RTCCLK_MASK (1 << 1)
 #define REGB_RTCENB_MASK (1 << 2)
@@ -51,9 +50,9 @@ typedef struct via_state {
     rtc_state rtc;
 } via_state;
 
-uint8_t *ret_reg(via_state *via, uint8_t offset)
+uint8_t ret_reg(via_state *via, uint8_t offset)
 {
-    return &via->regs[offset];
+    return via->regs[offset];
 }
 
 static void via_set_regAbuf(via_state *s, uint8_t val)

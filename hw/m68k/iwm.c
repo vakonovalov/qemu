@@ -6,59 +6,86 @@
 #include "mac128k.h"
 #include "sy6522.h"
 
-#define SEL_MASK (1 << 5)
-
 typedef struct via_state via_state;
 
 enum
 {
-    CA0 = 0,
-    CA1 = 1,
-    CA2 = 2,
-    LSTRB = 3,
-    ENABLE = 4,
-    SELECT = 5, /* 0 - internal, 1 - external */
-    Q6 = 6,
-    Q7 = 7,
-    IWM_REGS = 8
+    CA0      = 0,
+    CA1      = 1,
+    CA2      = 2,
+    LSTRB    = 3,
+    ENABLE   = 4,
+    SELECT   = 5, /* 0 - internal, 1 - external */
+    Q6       = 6,
+    Q7       = 7,
+    IWM_BITS = 8
 };
 
-typedef struct {
-    uint8_t DIRTN;
-    uint8_t CSTIN;
-    uint8_t STEP;
-    uint8_t WRTPRT;
-    uint8_t MOTORON;
-    uint8_t TKO;
-    uint8_t EIECT;
-    uint8_t TACH;
-    uint8_t RDDATAO;
-    uint8_t RDDATA1;
-    uint8_t SIDES;
-    uint8_t DRVIN;
-} diskReg_state;
+enum
+{
+    DIRTN   = 0,
+    CSTIN   = 1,
+    STEP    = 2,
+    WRTPRT  = 3,
+    MOTORON = 4,
+    TKO     = 5,
+    EIECT   = 6,
+    TACH    = 7,
+    RDDATAO = 8,
+    RDDATA1 = 9,
+    SIDES   = 12,
+    DRVIN   = 15,
+    IWM_REGS = 8
+};
 
 typedef struct {
     M68kCPU *cpu;
     MemoryRegion iomem;
     /* base address */
     target_ulong base;
-    uint8_t regs[IWM_REGS];
-    uint8_t *SEL_bit;
-    diskReg_state disk;
+    via_state *via;
+    uint8_t bits[IWM_BITS];
+    uint8_t regs[], ;
 } iwm_state;
+
+static void cmd_handw(iwm_state *s)
+{
+    uint8_t SEL = ret_reg(s->via, vBufA);
+    if (!SEL) {
+        if (s->regs[CA0]) {
+            if (s->regs[CA1]) {
+                s->disk.EIECT = s->regs[CA2];
+            } else {
+                s->disk.STEP = s->regs[CA2];
+            }
+        } else {
+            if (s->regs[CA1]) {
+                s->disk.MOTORON = s->regs[CA2];
+            } else {
+                s->disk.DIRTN = s->regs[CA2];
+            }
+        }
+    }
+}
+
+static void cmd_handr(iwm_state *s, hwaddr offset)
+{
+    uint8_t SEL = ret_reg(s->via, vBufA);
+
+
+
+}
 
 static void set_reg(iwm_state *s, hwaddr offset)
 {
-    //uint8_t old = s->regs[offset >> 1];
-    //uint8_t new = offset % 2;
-    /*if (!(s->regs[LSTRB])) {
-        
-        s->regs[offset >> 1] = offset % 2;
-    } else if (s->regs[LSTRB]) && (offset >> 1 == LSTRB){
-        s->regs[offset >> 1] = offset % 2;
-    }*/
-    s->regs[offset >> 1] = offset % 2;
+    uint8_t old = s->regs[offset >> 1];
+    uint8_t new = offset % 2;
+
+    if (!(old & REGA_SEL_MASK) && (new & REGA_SEL_MASK)) {
+        cmd_handw(s);
+    }
+
+    s->regs[offset >> 1] = new;
 }
 
 static void iwm_writeb(void *opaque, hwaddr offset,
@@ -85,6 +112,9 @@ static uint32_t iwm_readb(void *opaque, hwaddr offset)
     qemu_log("iwm_read\n");
     // printf("iwm_read offset=%x, regs[%x]=%x\n",
     //       (int)offset, ((int)offset >> 1), s->regs[offset >> 1]);
+    if (s->regs[Q6]) {
+        cmd_handr(s, offset);
+    }
     return s->regs[offset >> 1];
 }
 
@@ -128,6 +158,15 @@ static const MemoryRegionOps iwm_ops = {
     .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
+static void iwm_reset(void *opaque)
+{
+    iwm_state *s = opaque;
+    s->regs[Q6] = 1;
+    s->regs[Q7] = 0;
+    s->regs[ENABLE] = 0;
+    s->regs[SELECT] = 0;
+}
+
 void iwm_init(MemoryRegion *sysmem, uint32_t base, M68kCPU *cpu, via_state *via)
 {
     iwm_state *s;
@@ -138,11 +177,8 @@ void iwm_init(MemoryRegion *sysmem, uint32_t base, M68kCPU *cpu, via_state *via)
                           "iwm", 0x2000);
     memory_region_add_subregion(sysmem, base & TARGET_PAGE_MASK, &s->iomem);
 
-    s->regs[Q6] = 1;
-    s->regs[Q7] = 0;
     s->cpu = cpu;
+    s->via = via;
 
-    s->regs[ENABLE] = 0;
-    s->regs[SELECT] = 0;
-    s->SEL_bit = ret_reg(via, vBufA);
+    iwm_reset(s);
 }
