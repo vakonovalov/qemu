@@ -1,5 +1,5 @@
-#ifndef LALALA
-#define LALALA
+#ifndef SY6522
+#define SY6522
 
 #define SELBIT 5
 #define REGA_SEL_MASK (1 << SELBIT)

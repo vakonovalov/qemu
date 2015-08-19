@@ -57,11 +57,9 @@ static void cmd_handw(iwm_state *s)
 {
     uint8_t SEL = via_get_reg(s->via, vBufA);
     uint8_t cmd = 0;
-    cmd |= s->lines[CA1];
-    cmd <<= 1;
-    cmd |= s->lines[CA0];
-    cmd <<= 1;
-    cmd |= (SEL & REGA_SEL_MASK) >> SELBIT; 
+    cmd |= s->lines[CA1] & LOWBIT_MASK;
+    cmd = (cmd << 1) | (s->lines[CA0] & LOWBIT_MASK);
+    cmd = (cmd << 1) | ((SEL & REGA_SEL_MASK) >> SELBIT);
     if ((cmd & ~CMDW_MASK) == 0x00) {
         s->regs[cmd] &= ~LOWBIT_MASK;
         s->regs[cmd] |= (s->lines[CA2] >> LOWBIT) & LOWBIT_MASK;
@@ -75,13 +73,10 @@ static void cmd_handr(iwm_state *s)
 {
     uint8_t SEL = via_get_reg(s->via, vBufA);
     uint8_t cmd = 0;
-    cmd |= s->lines[CA2];
-    cmd <<= 1;
-    cmd |= s->lines[CA1];
-    cmd <<= 1;
-    cmd |= s->lines[CA0];
-    cmd <<= 1;
-    cmd |= (SEL & REGA_SEL_MASK) >> SELBIT;
+    cmd |= s->lines[CA2] & LOWBIT_MASK;
+    cmd = (cmd << 1) | (s->lines[CA1] & LOWBIT_MASK);
+    cmd = (cmd << 1) | (s->lines[CA0] & LOWBIT_MASK);
+    cmd = (cmd << 1) | ((SEL & REGA_SEL_MASK) >> SELBIT);
     if ((cmd == 6) || (cmd == 10) || (cmd == 11) || (cmd == 13) || (cmd == 14)) {
         printf("Unknown command: 0x%x\n", cmd);
     } else {
@@ -127,7 +122,7 @@ static uint32_t iwm_readb(void *opaque, hwaddr offset)
     qemu_log("iwm_read\n");
     // printf("iwm_read offset=%x, regs[%x]=%x\n",
     //       (int)offset, ((int)offset >> 1), s->regs[offset >> 1]);
-    if (s->lines[Q6] && (offset >> 1 == 7)) {
+    if (s->lines[Q6] && (offset >> 1 == Q7)) {
         cmd_handr(s);
     }
     return s->lines[offset >> 1];
