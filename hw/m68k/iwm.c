@@ -55,17 +55,21 @@ typedef struct {
 
 static void cmd_handw(iwm_state *s)
 {
-    uint8_t SEL = via_get_reg(s->via, vBufA);
-    uint8_t cmd = 0;
-    cmd |= s->lines[CA1] & LOWBIT_MASK;
-    cmd = (cmd << 1) | (s->lines[CA0] & LOWBIT_MASK);
-    cmd = (cmd << 1) | ((SEL & REGA_SEL_MASK) >> SELBIT);
-    if ((cmd & ~CMDW_MASK) == 0x00) {
-        s->regs[cmd] &= ~LOWBIT_MASK;
-        s->regs[cmd] |= (s->lines[CA2] >> LOWBIT) & LOWBIT_MASK;
-        printf("    Write s->reg[%d] = %x\n", cmd, s->regs[cmd]);
+    if (s->regs[WRTPRT]) {
+        uint8_t SEL = via_get_reg(s->via, vBufA);
+        uint8_t cmd = 0;
+        cmd |= s->lines[CA1] & LOWBIT_MASK;
+        cmd = (cmd << 1) | (s->lines[CA0] & LOWBIT_MASK);
+        cmd = (cmd << 1) | ((SEL & REGA_SEL_MASK) >> SELBIT);
+        if ((cmd & ~CMDW_MASK) == 0x00) {
+            s->regs[cmd] &= ~LOWBIT_MASK;
+            s->regs[cmd] |= (s->lines[CA2] >> LOWBIT) & LOWBIT_MASK;
+            printf("    Write s->reg[%d] = %x\n", cmd, s->regs[cmd]);
+        } else {
+            printf("Unknown command: 0x%x\n", cmd);
+        }
     } else {
-        printf("Unknown command: 0x%x\n", cmd);
+        printf("Write-protect enabled\n");
     }
 }
 
@@ -151,6 +155,8 @@ static void iwm_reset(void *opaque)
     for (i = 0; i < IWM_lines; i++) {
         s->lines[i] = 0;
     }
+    s->regs[MOTORON] = 1;
+    s->regs[WRTPRT] = 1;
 }
 
 void iwm_init(MemoryRegion *sysmem, uint32_t base, M68kCPU *cpu, via_state *via)
