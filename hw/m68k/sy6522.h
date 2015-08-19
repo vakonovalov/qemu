@@ -1,7 +1,8 @@
 #ifndef LALALA
 #define LALALA
 
-#define REGA_SEL_MASK (1 << 5)
+#define SELBIT 5
+#define REGA_SEL_MASK (1 << SELBIT)
 
 enum
 {
@@ -23,6 +24,6 @@ enum
     VIA_REGS = 16
 };
 
-uint8_t ret_reg(via_state *via, uint8_t offset);
+uint8_t via_get_reg(via_state *via, uint8_t offset);
 
 #endif 
