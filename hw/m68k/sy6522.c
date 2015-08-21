@@ -191,20 +191,20 @@ static void via_set_regBbuf(via_state *s, uint8_t val)
 
 static void via_set_reg_vIFR(via_state *s, uint8_t val)
 {
-    bool IRQ_set;
+    bool irq_set;
     uint8_t aux = val;
 
     aux = aux & 0x7f;
-    IRQ_set = aux & s->regs[vIER];
-    s->regs[vIFR] = (IRQ_set << 7) | aux;
+    irq_set = aux & s->regs[vIER];
+    s->regs[vIFR] = (irq_set << 7) | aux;
 
-    if (IRQ_set) {
-        m68k_set_irq_level(s->cpu,1,0x64 >> 2);
+    if (irq_set) {
+        m68k_set_irq_level(s->cpu, 1, 0x64 >> 2);
     } else {
-        m68k_set_irq_level(s->cpu,0,0x64 >> 2);
+        m68k_set_irq_level(s->cpu, 0, 0x64 >> 2);
     }
 
-    printf("vIFR = %x\n",s->regs[vIFR]);
+    qemu_log("vIFR = %x\n", s->regs[vIFR]);
 }
 
 static void via_set_reg_vIER(via_state *s, uint8_t val)
@@ -215,7 +215,7 @@ static void via_set_reg_vIER(via_state *s, uint8_t val)
         s->regs[vIER] &= ~val;
     }
 
-    printf("vIER = %x\n",s->regs[vIER]);
+    qemu_log("vIER = %x\n", s->regs[vIER]);
 }
 
 static void via_writeb(void *opaque, hwaddr offset,
