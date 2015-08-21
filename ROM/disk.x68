@@ -64,9 +64,35 @@ q7H EQU 512*15      ;Q7 on
     bset #0, dBase+q7H
     bset #0, dBase+q6L
 
+	bset #0, dBase+extDrive
+
+    bset #0, dBase+ph3L
+    bset #0, dBase+ph0H
+    bset #0, dBase+ph1H
+    bclr #vHeadSel, vBase+vBufA
+
+    bset #0, dBase+ph0H
+    bset #0, dBase+ph1L
+    bset #0, dBase+ph2H
+
+    bset #0, dBase+ph3H
+    bset #0, dBase+ph3L
+
+
+
+
+    bset #0, dBase+ph3L
+    bset #0, dBase+q6H
+    bset #0, dBase+ph0H
+    bset #0, dBase+ph1L
+    bset #0, dBase+ph2L
+
+    bset #0, dBase+q7H
+    bset #0, dBase+q6L
+
     L:
     bra L
-    
+
  END    START
 
 *~Font name~Courier New~

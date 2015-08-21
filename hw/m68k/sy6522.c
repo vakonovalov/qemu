@@ -31,7 +31,7 @@ typedef struct {
     uint8_t rw_flag;
     uint8_t cmd;
     uint8_t param;
-    uint8_t sec_reg[4]; 
+    uint8_t sec_reg[4];
     uint8_t test_reg;
     uint8_t wr_pr_reg;
     uint8_t buf_RAM[20];
@@ -184,7 +184,6 @@ static void via_writeb(void *opaque, hwaddr offset,
         hw_error("Bad VIA write offset 0x%x", (int)offset);
     }
     qemu_log("via_write offset=0x%x value=0x%x\n", (int)offset, value);
-    printf("via_write offset=0x%x value=0x%x\n", (int)offset, value);
     switch (offset) {
     case vBufA:
         via_set_regAbuf(s, value);
@@ -208,7 +207,6 @@ static uint32_t via_readb(void *opaque, hwaddr offset)
     }
     ret = s->regs[offset];
     qemu_log("via_read offset=0x%x val=0x%x\n", (int)offset, ret);
-    //printf("via_read offset=0x%x val=0x%x\n", (int)offset, ret);
     return ret;
 }
 
@@ -247,7 +245,7 @@ static void rtc_interrupt(void * opaque)
 
 static void rtc_reset(rtc_state *rtc)
 {
-    uint64_t now = qemu_clock_get_ns(rtc_clock) / get_ticks_per_sec() 
+    uint64_t now = qemu_clock_get_ns(rtc_clock) / get_ticks_per_sec()
                  + HOST_TO_MAC_RTC;
     uint8_t i;
     for (i = 0; i < 4; ++i) {
@@ -269,7 +267,7 @@ static void set_rtc_irq(void *opaque, int irq, int level)
 {
     via_state *s = (via_state *)opaque;
     if (irq == 0) {
-        m68k_set_irq_level(s->cpu, level, 0x64 >> 2); 
+        m68k_set_irq_level(s->cpu, level, 0x64 >> 2);
     }
 }
 
