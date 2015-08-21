@@ -80,7 +80,6 @@ static void via_set_regAbuf(via_state *s, uint8_t val)
     /* TODO: other bits */
 
     s->regs[vBufA] = val;
-
 }
 
 static void via_set_regBdir(via_state *s, uint8_t val)

@@ -8,7 +8,4 @@ struct MemoryRegion;
 /* iwm.c */
 void iwm_init(MemoryRegion *sysmem, uint32_t base, M68kCPU *cpu, via_state *via);
 
-/* sy6522.c */
-via_state *sy6522_init(MemoryRegion *rom, MemoryRegion *ram, uint32_t base, M68kCPU *cpu);
-
 #endif

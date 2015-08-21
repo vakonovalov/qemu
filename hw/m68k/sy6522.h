@@ -26,4 +26,6 @@ enum
 
 uint8_t via_get_reg(via_state *via, uint8_t offset);
 
+via_state *sy6522_init(MemoryRegion *rom, MemoryRegion *ram, uint32_t base, M68kCPU *cpu);
+
 #endif 
