@@ -28,6 +28,9 @@ enum
     IWM_LINES = 8
 };
 
+const char *iwm_lines[IWM_LINES] = {"CA0", "CA1", "CA2", "LSTRB",
+                                    "ENABLE", "SELECT", "Q6", "Q7"};
+
 enum
 {
     DIRTN    = 0,
@@ -44,6 +47,10 @@ enum
     DRVIN    = 15,
     IWM_REGS = 16
 };
+
+const char *iwm_regs[IWM_REGS] = {"DIRTN", "CSTIN", "STEP", "WRTPRT", "MOTORON",
+                                  "TKO", "EJECT", "TACH", "RDDATA0", "RDDATA1",
+                                  "---", "---", "SIDES", "---", "---", "DRVIN"};
 
 typedef struct {
     M68kCPU *cpu;
@@ -76,6 +83,7 @@ static void cmd_handw(iwm_state *s)
     if ((cmd & ~CMDW_MASK) == 0x00) {
         reg[cmd] &= ~LOWBIT_MASK;
         reg[cmd] |= (s->lines[CA2] >> LOWBIT) & LOWBIT_MASK;
+        qemu_log("iwm: write %s register\n", iwm_regs[cmd]);
     } else {
         qemu_log("iwm error: unknown command 0x%x\n", cmd);
     }
@@ -95,6 +103,13 @@ static void cmd_handr(iwm_state *s)
     } else {
         s->lines[Q7] &= ~HIGHBIT_MASK;
         s->lines[Q7] |= (reg[cmd] << HIGHBIT) & HIGHBIT_MASK;
+        if (cmd == CSTIN) {
+            // no disk yet
+            // 0xff - no disk?
+            // 0x1f - disk is inside? ROM decides to go deeper
+            s->lines[Q7] = 0x1f;
+        }
+        qemu_log("iwm: read %s register\n", iwm_regs[cmd]);
     }
 }
 
@@ -106,11 +121,12 @@ static void iwm_writeb(void *opaque, hwaddr offset,
     if (offset > 0xF) {
         hw_error("Bad IWM write offset 0x%x", (int)offset);
     }
-    qemu_log("iwm_write offset=0x%x value=0x%x\n", (int)offset, value);
+    //qemu_log("iwm_write offset=0x%x value=0x%x\n", (int)offset, value);
+    s->lines[offset >> 1] = offset % 2;
+    qemu_log("iwm: line %s set to %d\n", iwm_lines[offset >> 1], (int)offset % 2);
     if ((offset % 2) && (offset >> 1 == LSTRB)) {
         cmd_handw(s);
     }
-    s->lines[offset >> 1] = offset % 2;
 }
 
 static uint32_t iwm_readb(void *opaque, hwaddr offset)
@@ -120,11 +136,12 @@ static uint32_t iwm_readb(void *opaque, hwaddr offset)
     if (offset >= IWM_REGS) {
         hw_error("Bad iwm read offset 0x%x", (int)offset);
     }
-    qemu_log("iwm_read offset=0x%x\n", (int)offset);
-    if (s->lines[Q6] && (offset >> 1 == Q7) && (offset >> 1 != LSTRB)) {
+    //qemu_log("iwm_read offset=0x%x\n", (int)offset);
+    s->lines[offset >> 1] = offset % 2;
+    qemu_log("iwm: line %s set to %d\n", iwm_lines[offset >> 1], (int)offset % 2);
+    if (s->lines[Q6] && (offset >> 1 == Q7) && !s->lines[LSTRB]) {
         cmd_handr(s);
     }
-    s->lines[offset >> 1] = offset % 2;
     return s->lines[offset >> 1];
 }
 
