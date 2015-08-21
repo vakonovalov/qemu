@@ -1441,6 +1441,15 @@ DISAS_INSN(movem)
     }
 }
 
+DISAS_INSN(movep)
+{
+    /*TCGv tmp;
+    uint16_t displ;
+
+    displ = */read_im16(env, s);
+    //tmp = tcg_const_i32(displ);
+}
+
 DISAS_INSN(bitop_im)
 {
     int opsize;
@@ -4127,12 +4136,16 @@ void register_m68k_insns (CPUM68KState *env)
     INSN(bitrev,    00c0, fff8, CF_ISA_APLUSC);
     INSN(bitop_reg, 0100, f1c0, CF_ISA_A);
     INSN(bitop_reg, 0100, f1c0, M68000);
+    INSN(movep,     0108, f1f8, M68000); // overwrite bitop
     INSN(bitop_reg, 0140, f1c0, CF_ISA_A);
     INSN(bitop_reg, 0140, f1c0, M68000);
+    INSN(movep,     0148, f1f8, M68000); // overwrite bitop
     INSN(bitop_reg, 0180, f1c0, CF_ISA_A);
     INSN(bitop_reg, 0180, f1c0, M68000);
+    INSN(movep,     0188, f1f8, M68000); // overwrite bitop
     INSN(bitop_reg, 01c0, f1c0, CF_ISA_A);
     INSN(bitop_reg, 01c0, f1c0, M68000);
+    INSN(movep,     01c8, f1f8, M68000); // overwrite bitop
     INSN(arith_im,  0280, fff8, CF_ISA_A);
     INSN(arith_im,  0200, ff00, M68000);
     INSN(undef,     02c0, ffc0, M68000);
