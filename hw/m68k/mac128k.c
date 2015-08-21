@@ -118,8 +118,9 @@ static void mac128k_init(MachineState *machine)
     memory_region_set_readonly(rom, true);
 
     iwm_init(address_space_mem, IWM_BASE_ADDR, cpu);
-    sy6522_init(rom, ram, VIA_BASE_ADDR, cpu);
-    keyboard_init();
+    void *_s_;
+    _s_ = sy6522_init(rom, ram, VIA_BASE_ADDR, cpu);
+    keyboard_init(_s_);
 
     /* Display */
     display->con = graphic_console_init(NULL, 0, &mac_display_ops, display);

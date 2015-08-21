@@ -189,7 +189,7 @@ static void via_set_regBbuf(via_state *s, uint8_t val)
     s->regs[vBufB] = val;
 }
 
-static void via_set_reg_vIFR(via_state *s, uint8_t val)
+void via_set_reg_vIFR(via_state *s, uint8_t val)
 {
     bool irq_set;
     uint8_t aux = val & 0x7f;
@@ -350,7 +350,7 @@ static void sy6522_reset(void *opaque)
     rtc_param_reset(&s->rtc);
 }
 
-void sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
+void *sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
                  uint32_t base, M68kCPU *cpu)
 {
     via_state *s;
@@ -374,4 +374,6 @@ void sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
 
     qemu_register_reset(sy6522_reset, s);
     sy6522_reset(s);
+
+    return s;
 }

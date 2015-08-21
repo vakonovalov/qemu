@@ -6,14 +6,15 @@ struct MemoryRegion;
 /* iwm.c */
 void iwm_init(MemoryRegion *sysmem, uint32_t base, M68kCPU *cpu);
 
-typedef struct via_state via_state;
-
 /* sy6522.c */
 void *sy6522_init(MemoryRegion *rom, MemoryRegion *ram, uint32_t base, M68kCPU *cpu);
 
 void keyboard_init(void *via_state);
 
+typedef struct via_state via_state;
+
 void via_set_reg_vSR(via_state *s, uint8_t val);
-uint8_t via_read_reg_vSR(via_state *s)
+uint8_t via_read_reg_vSR(via_state *s);
+void via_set_reg_vIFR(via_state *s, uint8_t val);
 
 #endif

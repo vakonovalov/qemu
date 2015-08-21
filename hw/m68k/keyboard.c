@@ -12,6 +12,7 @@ typedef struct keyboard_state{
     uint8_t cmd;
     uint8_t param;
     QEMUTimer *timer;
+    struct via_state *via;
 } keyboard_state;
 
 static const unsigned char macintosh128k_raw_keycode[128] = {
@@ -36,9 +37,11 @@ static QemuInputHandler keyboard_handler = {
 
 static void put_keycode(void *opaque, int keycode)
 {
-//    keyboard_state *s = opaque;
-    printf("%x\n",keycode);
+    keyboard_state *s = (keyboard_state *)opaque;
 
+    via_set_reg_vSR(s->via, keycode);
+    via_set_reg_vIFR(s->via, s->via->regs[13] | 0x04);
+    printf("%x\n",keycode);
 }
 
 
@@ -46,7 +49,7 @@ static void keyboard_event(DeviceState *dev, QemuConsole *src,
                                InputEvent *evt)
 {
     keyboard_state *s = (keyboard_state *)dev;
-    int scancodes[3], i, count;
+    int scancodes[3], count;
 
     printf("%x ", qemu_input_key_value_to_number(evt->key->key));
     count = qemu_input_key_value_to_scancode(evt->key->key,
@@ -65,9 +68,10 @@ static void keyboard_reset(void *opaque) {
     kbd_state->param = 0;
 }
 
-void keyboard_init(void) {
+void keyboard_init(void *via) {
     keyboard_state *s = (keyboard_state *)g_malloc0(sizeof(keyboard_state));
     
+    s->via = via;
     qemu_input_handler_register((DeviceState *)s,
                                 &keyboard_handler);
     qemu_register_reset(keyboard_reset, s);
