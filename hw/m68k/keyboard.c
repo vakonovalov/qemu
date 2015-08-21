@@ -14,6 +14,17 @@ typedef struct keyboard_state{
     QEMUTimer *timer;
 } keyboard_state;
 
+static const unsigned char macintosh128k_raw_keycode[128] = {
+  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+0x19, 0x1b, 0x1d, 0x1f, 0x23, 0x21, 0x41, 0x45, 0x3f, 0x47,  0,  0,  0,  0,  0x1,  0x3,
+  0x5,  0x7,  0xb,  0x9,  0x4d,  0x51,  0x4b,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+};
+
 static void keyboard_event(DeviceState *dev, QemuConsole *src, InputEvent *evt);
 
 static QemuInputHandler keyboard_handler = {
@@ -37,13 +48,13 @@ static void keyboard_event(DeviceState *dev, QemuConsole *src,
     keyboard_state *s = (keyboard_state *)dev;
     int scancodes[3], i, count;
 
-    
+    printf("%x ", qemu_input_key_value_to_number(evt->key->key));
     count = qemu_input_key_value_to_scancode(evt->key->key,
                                              evt->key->down,
                                              scancodes);
-    for (i = 0; i < count; i++) {
-        put_keycode(s, scancodes[i]);
-    }
+
+    if (count == 3) put_keycode(s,0);
+    else put_keycode(s, scancodes[count-1]);
 }
 
 static void keyboard_reset(void *opaque) {
