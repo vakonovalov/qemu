@@ -91,6 +91,7 @@ static const GraphicHwOps mac_display_ops = {
 static void mac128k_init(MachineState *machine)
 {
     ram_addr_t ram_size = 0x20000;//machine->ram_size;
+    hwaddr ramOffset;
     const char *cpu_model = machine->cpu_model;
     const char *kernel_filename = machine->kernel_filename;
     M68kCPU *cpu;
@@ -113,6 +114,21 @@ static void mac128k_init(MachineState *machine)
     /* RAM at address zero */
     memory_region_allocate_system_memory(ram, NULL, "mac128k.ram", ram_size);
     memory_region_add_subregion(address_space_mem, 0, ram);
+    /* RAM mirroring (address wrap) */
+    for (ramOffset = ram_size ; ramOffset < 0x80000 ; ramOffset += ram_size)
+    {
+        MemoryRegion *alias = g_new(MemoryRegion, 1);
+        memory_region_init_alias(alias, NULL, "RAM mirror", ram, 0x0, 0x20000);
+        memory_region_add_subregion(address_space_mem, ramOffset, alias);
+    }
+    /* RAM mirroring for overlay (address wrap) */
+    for (ramOffset = ram_size ; ramOffset < 0x80000 ; ramOffset += ram_size)
+    {
+        /* hack: should be enabled only when overlay is on */
+        MemoryRegion *alias = g_new(MemoryRegion, 1);
+        memory_region_init_alias(alias, NULL, "RAM mirror", ram, 0x0, 0x20000);
+        memory_region_add_subregion(address_space_mem, 0x600000 + ramOffset, alias);
+    }
 
     /* ROM */
     memory_region_init_ram(rom, NULL, "mac128k.rom", MAX_ROM_SIZE, &error_abort);
