@@ -192,9 +192,8 @@ static void via_set_regBbuf(via_state *s, uint8_t val)
 static void via_set_reg_vIFR(via_state *s, uint8_t val)
 {
     bool irq_set;
-    uint8_t aux = val;
+    uint8_t aux = val & 0x7f;
 
-    aux = aux & 0x7f;
     irq_set = aux & s->regs[vIER];
     s->regs[vIFR] = (irq_set << 7) | aux;
 
@@ -214,6 +213,8 @@ static void via_set_reg_vIER(via_state *s, uint8_t val)
     } else {
         s->regs[vIER] &= ~val;
     }
+
+    s->regs[vIER] |= 0x80;
 
     qemu_log("vIER = %x\n", s->regs[vIER]);
 }
