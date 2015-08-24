@@ -50,11 +50,6 @@ typedef struct via_state {
     rtc_state rtc;
 } via_state;
 
-uint8_t via_get_reg(via_state *via, uint8_t offset)
-{
-    return via->regs[offset];
-}
-
 static void via_set_regAbuf(via_state *s, uint8_t val)
 {
     uint8_t old = s->regs[vBufA];
@@ -174,7 +169,7 @@ static void via_set_regBbuf(via_state *s, uint8_t val)
     s->regs[vBufB] = val;
 }
 
-void via_set_reg_vIFR(via_state *s, uint8_t val)
+static void via_set_reg_vIFR(via_state *s, uint8_t val)
 {
     bool irq_set;
     uint8_t aux = val & 0x7f;
@@ -205,14 +200,14 @@ static void via_set_reg_vIER(via_state *s, uint8_t val)
 }
 
 //Both functions zeroes vSR interrupt flag
-void via_set_reg_vSR(via_state *s, uint8_t val)
+static void via_set_reg_vSR(via_state *s, uint8_t val)
 {
     s->regs[vSR] = val;
     via_set_reg_vIFR(s, s->regs[vIFR] & 0xfb);
-    printf("Write vSR = %x\n",s->regs[vIER]);
+    printf("Write vSR = %x\n",s->regs[vSR]);
 }
 
-uint8_t via_read_reg_vSR(via_state *s)
+static uint8_t via_read_reg_vSR(via_state *s)
 {
     via_set_reg_vIFR(s, s->regs[vIFR] & 0xfb);
     printf("Read vSR = %x\n",s->regs[vIER]);
@@ -259,8 +254,42 @@ static uint32_t via_readb(void *opaque, hwaddr offset)
         hw_error("Bad VIA read offset 0x%x", (int)offset);
     }
     ret = s->regs[offset];
+    if (offset == vSR)
+        ret = via_read_reg_vSR(s);
     qemu_log("via_read offset=0x%x val=0x%x\n", (int)offset, ret);
     return ret;
+}
+
+uint8_t via_get_reg(via_state *via, uint8_t offset)
+{
+    if (offset == vSR) 
+        return via_read_reg_vSR(via);
+
+    return via->regs[offset];
+}
+
+void via_set_reg(via_state *via, uint8_t offset, uint8_t value) 
+{
+    switch (offset) {
+    case vBufA:
+        via_set_regAbuf(via, value);
+        break;
+    case vBufB:
+        via_set_regBbuf(via, value);
+        break;
+    case vDirB:
+        via_set_regBdir(via, value);
+        break;
+    case vSR:
+        via_set_reg_vSR(via, value);
+        break;
+    case vIFR:
+        via_set_reg_vIFR(via, value);
+        break;
+    case vIER:
+        via_set_reg_vIER(via, value);
+        break;
+    }
 }
 
 static const MemoryRegionOps via_ops = {

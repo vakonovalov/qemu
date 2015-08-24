@@ -1,9 +1,9 @@
 #include "hw/hw.h"
 #include "exec/address-spaces.h"
 #include "mac128k.h"
-#include "sysemu/sysemu.h"
 #include "hw/irq.h"
 #include "ui/input.h"
+#include "sy6522.h"
 
 typedef struct keyboard_state{
     qemu_irq irq;
@@ -37,10 +37,14 @@ static QemuInputHandler keyboard_handler = {
 
 static void put_keycode(void *opaque, int keycode)
 {
+    uint8_t keycode_mac;
     keyboard_state *s = (keyboard_state *)opaque;
 
-    via_set_reg_vSR(s->via, keycode);
-    via_set_reg_vIFR(s->via, s->via->regs[13] | 0x04);
+    keycode_mac = macintosh128k_raw_keycode[keycode & 0x7f];
+    keycode_mac = keycode_mac | (keycode & 0x80);
+
+    via_set_reg(s->via, vSR, keycode_mac);
+    via_set_reg(s->via, vIFR, via_get_reg(s->via, vIFR) | 0x04);
     printf("%x\n",keycode);
 }
 
@@ -51,7 +55,6 @@ static void keyboard_event(DeviceState *dev, QemuConsole *src,
     keyboard_state *s = (keyboard_state *)dev;
     int scancodes[3], count;
 
-    printf("%x ", qemu_input_key_value_to_number(evt->key->key));
     count = qemu_input_key_value_to_scancode(evt->key->key,
                                              evt->key->down,
                                              scancodes);
