@@ -12,7 +12,7 @@ typedef struct keyboard_state{
     uint8_t cmd;
     uint8_t param;
     QEMUTimer *timer;
-    struct via_state *via;
+    via_state *via;
 } keyboard_state;
 
 static const unsigned char macintosh128k_raw_keycode[128] = {
@@ -68,7 +68,7 @@ static void keyboard_reset(void *opaque) {
     kbd_state->param = 0;
 }
 
-void keyboard_init(void *via) {
+void keyboard_init(via_state *via) {
     keyboard_state *s = (keyboard_state *)g_malloc0(sizeof(keyboard_state));
     
     s->via = via;

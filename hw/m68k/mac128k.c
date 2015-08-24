@@ -6,6 +6,7 @@
 
 #include "hw/hw.h"
 #include "mac128k.h"
+#include "sy6522.h"
 #include "hw/boards.h"
 #include "hw/loader.h"
 #include "elf.h"
@@ -90,6 +91,7 @@ static const GraphicHwOps mac_display_ops = {
 static void mac128k_init(MachineState *machine)
 {
     ram_addr_t ram_size = 0x20000;//machine->ram_size;
+    hwaddr ramOffset;
     const char *cpu_model = machine->cpu_model;
     const char *kernel_filename = machine->kernel_filename;
     M68kCPU *cpu;
@@ -97,6 +99,7 @@ static void mac128k_init(MachineState *machine)
     MemoryRegion *address_space_mem = get_system_memory();
     MemoryRegion *ram = g_new(MemoryRegion, 1);
     MemoryRegion *rom = g_new(MemoryRegion, 1);
+    via_state *via;
     mac_display *display = (mac_display *)g_malloc0(sizeof(mac_display));
 
     if (!cpu_model) {
@@ -111,16 +114,30 @@ static void mac128k_init(MachineState *machine)
     /* RAM at address zero */
     memory_region_allocate_system_memory(ram, NULL, "mac128k.ram", ram_size);
     memory_region_add_subregion(address_space_mem, 0, ram);
+    /* RAM mirroring (address wrap) */
+    for (ramOffset = ram_size ; ramOffset < 0x80000 ; ramOffset += ram_size)
+    {
+        MemoryRegion *alias = g_new(MemoryRegion, 1);
+        memory_region_init_alias(alias, NULL, "RAM mirror", ram, 0x0, 0x20000);
+        memory_region_add_subregion(address_space_mem, ramOffset, alias);
+    }
+    /* RAM mirroring for overlay (address wrap) */
+    for (ramOffset = ram_size ; ramOffset < 0x80000 ; ramOffset += ram_size)
+    {
+        /* hack: should be enabled only when overlay is on */
+        MemoryRegion *alias = g_new(MemoryRegion, 1);
+        memory_region_init_alias(alias, NULL, "RAM mirror", ram, 0x0, 0x20000);
+        memory_region_add_subregion(address_space_mem, 0x600000 + ramOffset, alias);
+    }
 
     /* ROM */
     memory_region_init_ram(rom, NULL, "mac128k.rom", MAX_ROM_SIZE, &error_abort);
     memory_region_add_subregion(address_space_mem, ROM_LOAD_ADDR, rom);
     memory_region_set_readonly(rom, true);
 
-    iwm_init(address_space_mem, IWM_BASE_ADDR, cpu);
-    void *_s_;
-    _s_ = sy6522_init(rom, ram, VIA_BASE_ADDR, cpu);
-    keyboard_init(_s_);
+    via = sy6522_init(rom, ram, VIA_BASE_ADDR, cpu);
+    iwm_init(address_space_mem, IWM_BASE_ADDR, cpu, via);
+    keyboard_init(via);
 
     /* Display */
     display->con = graphic_console_init(NULL, 0, &mac_display_ops, display);
