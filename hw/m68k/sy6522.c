@@ -204,13 +204,13 @@ static void via_set_reg_vSR(via_state *s, uint8_t val)
 {
     s->regs[vSR] = val;
     via_set_reg_vIFR(s, s->regs[vIFR] & 0xfb);
-    printf("Write vSR = %x\n",s->regs[vSR]);
+    printf("Write vSR = %x , vIFR = %x\n",s->regs[vSR],s->regs[vIFR]);
 }
 
 static uint8_t via_read_reg_vSR(via_state *s)
 {
     via_set_reg_vIFR(s, s->regs[vIFR] & 0xfb);
-    printf("Read vSR = %x\n",s->regs[vIER]);
+    printf("Read vSR = %x , vIFR = %x\n",s->regs[vSR],s->regs[vIFR]);
     return s->regs[vSR];
 }
 
@@ -235,6 +235,7 @@ static void via_writeb(void *opaque, hwaddr offset,
         break;
     case vSR:
         via_set_reg_vSR(s, value);
+        keyboard_handle_cmd();
         break;
     case vIFR:
         via_set_reg_vIFR(s, value);
@@ -349,7 +350,7 @@ static void set_rtc_irq(void *opaque, int irq, int level)
 {
     via_state *s = (via_state *)opaque;
     if (irq == 0) {
-        via_set_reg_vIFR(s, s->regs[vIFR] | 0x01);
+        via_set_reg_vIFR(s, s->regs[vIFR] | 0x00);
     }
 }
 
