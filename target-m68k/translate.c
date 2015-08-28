@@ -1443,11 +1443,37 @@ DISAS_INSN(movem)
 
 DISAS_INSN(movep)
 {
-    /*TCGv tmp;
+    uint32_t mask;
+    int op;
+    int opsize;
     uint16_t displ;
+    TCGv reg;
+    TCGv addr;
+    TCGv var;
 
-    displ = */read_im16(env, s);
-    //tmp = tcg_const_i32(displ);
+    op = (insn >> 6) & 7;
+    opsize = (op & 1) ? OS_LONG : OS_WORD;
+    displ = read_im16(env, s);
+
+    addr = AREG(insn, 0);
+    tcg_gen_addi_i32(addr, addr, displ);
+    reg = DREG(insn, 9);
+
+    if (opsize == OS_WORD) {
+        tcg_gen_addi_i32(addr, addr, 1);
+        mask = 0x0000FF00;
+    } else if (opsize == OS_LONG) {
+        mask = 0xFF000000;   
+    }
+
+    var = tcg_temp_new();
+    
+    for (mask = mask; mask > 0; mask >>= 8) {
+        tcg_gen_andi_i32(var, reg, mask);
+        gen_store(s, opsize, addr, reg);
+        tcg_gen_addi_i32(addr, addr, 1);
+    }
+    tcg_temp_free(var);
 }
 
 DISAS_INSN(bitop_im)
@@ -1739,7 +1765,7 @@ DISAS_INSN(move)
         gen_logic_cc(s, src, opsize);
     }
 }
-
+        //qemu_log("\n", );
 DISAS_INSN(negx)
 {
     TCGv src;
