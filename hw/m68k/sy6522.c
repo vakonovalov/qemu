@@ -48,6 +48,7 @@ typedef struct via_state {
     /* registers */
     uint8_t regs[VIA_REGS];
     rtc_state rtc;
+    keyboard_state *keyboard;
 } via_state;
 
 static void via_set_regAbuf(via_state *s, uint8_t val)
@@ -204,13 +205,13 @@ static void via_set_reg_vSR(via_state *s, uint8_t val)
 {
     s->regs[vSR] = val;
     via_set_reg_vIFR(s, s->regs[vIFR] & 0xfb);
-    printf("Write vSR = %x , vIFR = %x\n",s->regs[vSR],s->regs[vIFR]);
+    qemu_log("Write vSR = %x , vIFR = %x\n",s->regs[vSR],s->regs[vIFR]);
 }
 
 static uint8_t via_read_reg_vSR(via_state *s)
 {
     via_set_reg_vIFR(s, s->regs[vIFR] & 0xfb);
-    printf("Read vSR = %x , vIFR = %x\n",s->regs[vSR],s->regs[vIFR]);
+    qemu_log("Read vSR = %x , vIFR = %x\n",s->regs[vSR],s->regs[vIFR]);
     return s->regs[vSR];
 }
 
@@ -223,26 +224,9 @@ static void via_writeb(void *opaque, hwaddr offset,
         hw_error("Bad VIA write offset 0x%x", (int)offset);
     }
     qemu_log("via_write offset=0x%x value=0x%x\n", (int)offset, value);
-    switch (offset) {
-    case vBufA:
-        via_set_regAbuf(s, value);
-        break;
-    case vBufB:
-        via_set_regBbuf(s, value);
-        break;
-    case vDirB:
-        via_set_regBdir(s, value);
-        break;
-    case vSR:
-        via_set_reg_vSR(s, value);
-        keyboard_handle_cmd();
-        break;
-    case vIFR:
-        via_set_reg_vIFR(s, value);
-        break;
-    case vIER:
-        via_set_reg_vIER(s, value);
-        break;
+    via_set_reg(s, offset, value);
+    if (offset == vSR) {
+        keyboard_handle_cmd(s->keyboard);
     }
 }
 
@@ -254,9 +238,7 @@ static uint32_t via_readb(void *opaque, hwaddr offset)
     if (offset >= VIA_REGS) {
         hw_error("Bad VIA read offset 0x%x", (int)offset);
     }
-    ret = s->regs[offset];
-    if (offset == vSR)
-        ret = via_read_reg_vSR(s);
+    ret = via_get_reg(s,offset);
     qemu_log("via_read offset=0x%x val=0x%x\n", (int)offset, ret);
     return ret;
 }
@@ -350,7 +332,7 @@ static void set_rtc_irq(void *opaque, int irq, int level)
 {
     via_state *s = (via_state *)opaque;
     if (irq == 0) {
-        via_set_reg_vIFR(s, s->regs[vIFR] | 0x00);
+        via_set_reg_vIFR(s, s->regs[vIFR] | 0x01);
     }
 }
 
@@ -386,6 +368,7 @@ via_state *sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
     memory_region_init_alias(&s->ram, NULL, "RAM overlay", ram, 0x0, 0x20000);
 
     rtc_init(&s->rtc, pic[0]);
+    s->keyboard = keyboard_init(s);
 
     qemu_register_reset(sy6522_reset, s);
     sy6522_reset(s);
