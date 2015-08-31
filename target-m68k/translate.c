@@ -1444,36 +1444,43 @@ DISAS_INSN(movem)
 DISAS_INSN(movep)
 {
     uint32_t mask;
+    uint8_t i;
     int op;
     int opsize;
     uint16_t displ;
+    const uint8_t MASK = 0xFF;
     TCGv reg;
     TCGv addr;
-    TCGv var;
+    TCGv abuf;
+    TCGv dbuf;
 
     op = (insn >> 6) & 7;
     opsize = (op & 1) ? OS_LONG : OS_WORD;
     displ = read_im16(env, s);
 
     addr = AREG(insn, 0);
-    tcg_gen_addi_i32(addr, addr, displ);
     reg = DREG(insn, 9);
 
+    abuf = tcg_temp_new();
+    tcg_gen_addi_i32(abuf, addr, displ);
+
     if (opsize == OS_WORD) {
-        tcg_gen_addi_i32(addr, addr, 1);
-        mask = 0x0000FF00;
+        i = 2;
     } else if (opsize == OS_LONG) {
-        mask = 0xFF000000;   
+        i = 4;  
     }
 
-    var = tcg_temp_new();
-    
-    for (mask = mask; mask > 0; mask >>= 8) {
-        tcg_gen_andi_i32(var, reg, mask);
-        gen_store(s, opsize, addr, reg);
-        tcg_gen_addi_i32(addr, addr, 1);
+    dbuf = tcg_temp_new();
+
+    for (; i > 0; i--) {
+        mask = MASK << ((i - 1) * 8);
+        tcg_gen_andi_i32(dbuf, reg, mask);
+        tcg_gen_shri_i32(dbuf, dbuf, (i - 1) * 8);
+        gen_store(s, OS_BYTE, abuf, dbuf);
+        tcg_gen_addi_i32(abuf, abuf, 2);
     }
-    tcg_temp_free(var);
+    tcg_temp_free(abuf);
+    tcg_temp_free(dbuf);
 }
 
 DISAS_INSN(bitop_im)
