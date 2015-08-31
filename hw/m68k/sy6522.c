@@ -205,7 +205,7 @@ static void via_set_reg_vSR(via_state *s, uint8_t val)
 {
     s->regs[vSR] = val;
     via_set_reg_vIFR(s, s->regs[vIFR] & 0xfb);
-    qemu_log("Write vSR = %x , vIFR = %x\n",s->regs[vSR],s->regs[vIFR]);
+    qemu_log("Write vSR = %x , vIFR = %x\n", s->regs[vSR], s->regs[vIFR]);
 }
 
 static uint8_t via_read_reg_vSR(via_state *s)
@@ -238,7 +238,7 @@ static uint32_t via_readb(void *opaque, hwaddr offset)
     if (offset >= VIA_REGS) {
         hw_error("Bad VIA read offset 0x%x", (int)offset);
     }
-    ret = via_get_reg(s,offset);
+    ret = via_get_reg(s, offset);
     qemu_log("via_read offset=0x%x val=0x%x\n", (int)offset, ret);
     return ret;
 }

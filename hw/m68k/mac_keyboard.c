@@ -75,7 +75,6 @@ static void cmd_handler(void *opaque, int irq, int level)
     keyboard_state *s = (keyboard_state *)opaque;
     if (irq == 1) {
         s->cmd = via_get_reg(s->via, vSR);
-
         switch(s->cmd) {
             case 0x10:
                 if (s->model_number_flag) {
@@ -83,7 +82,7 @@ static void cmd_handler(void *opaque, int irq, int level)
                 }
                 break;
             case 0x14:
-                hw_error("Command Instant is unavailable. Somebody need to fix that.\n");
+                hw_error("Command Instant is unavailable for this keyboard. Somebody need to fix that.\n");
                 break;
             case 0x16:
                 keyboard_reset(s);
@@ -99,8 +98,7 @@ static void cmd_handler(void *opaque, int irq, int level)
     }
 }
 
-static void timer_callback(void *opaque)
-{
+static void timer_callback(void *opaque) {
     put_value_vSR(opaque, 0x7b);
 }
 
