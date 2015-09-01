@@ -1,4 +1,5 @@
 #include "replay/replay.h"
+#include "sysemu/sysemu.h"
 
 ReplayMode replay_mode;
 
