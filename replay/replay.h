@@ -112,5 +112,9 @@ void replay_disable_events(void);
 bool replay_events_enabled(void);
 /*! Adds ptimer event to the queue */
 void replay_add_ptimer_event(void *bh, uint64_t id);
+/*! Adds input event to the queue */
+void replay_input_event(QemuConsole *src, InputEvent *evt);
+/*! Adds input sync event to the queue */
+void replay_input_sync_event(void);
 
 #endif

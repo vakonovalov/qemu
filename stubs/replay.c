@@ -1,5 +1,7 @@
 #include "replay/replay.h"
 #include "sysemu/sysemu.h"
+#include "qemu/notify.h"
+#include "ui/input.h"
 
 ReplayMode replay_mode;
 
