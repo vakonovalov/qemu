@@ -15,6 +15,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "qapi-types.h"
+#include "qemu/typedefs.h"
 
 /* replay clock kinds */
 enum ReplayClockKind {
@@ -41,6 +42,15 @@ enum ReplayCheckpoint {
 typedef enum ReplayCheckpoint ReplayCheckpoint;
 
 extern ReplayMode replay_mode;
+
+/* Replay process control functions */
+
+/*! Enables recording or saving event log with specified parameters */
+void replay_configure(struct QemuOpts *opts);
+/*! Initializes timers used for snapshotting and enables events recording */
+void replay_start(void);
+/*! Closes replay log file and frees other resources. */
+void replay_finish(void);
 
 /* Processing the instructions */
 

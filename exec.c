@@ -51,6 +51,7 @@
 #include "qemu/main-loop.h"
 #include "exec/cputlb.h"
 #include "translate-all.h"
+#include "replay/replay.h"
 
 #include "exec/memory-internal.h"
 #include "exec/ram_addr.h"
@@ -841,6 +842,7 @@ void cpu_abort(CPUState *cpu, const char *fmt, ...)
     }
     va_end(ap2);
     va_end(ap);
+    replay_finish();
 #if defined(CONFIG_USER_ONLY)
     {
         struct sigaction act;
