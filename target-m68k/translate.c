@@ -1445,8 +1445,7 @@ DISAS_INSN(movep)
 {
     uint32_t mask;
     uint8_t i;
-    int op;
-    int opsize;
+    uint8_t op;
     uint16_t displ;
     const uint8_t MASK = 0xFF;
     TCGv reg;
@@ -1455,7 +1454,6 @@ DISAS_INSN(movep)
     TCGv dbuf;
 
     op = (insn >> 6) & 7;
-    opsize = (op & 1) ? OS_LONG : OS_WORD;
     displ = read_im16(env, s);
 
     addr = AREG(insn, 0);
@@ -1463,21 +1461,34 @@ DISAS_INSN(movep)
 
     abuf = tcg_temp_new();
     tcg_gen_addi_i32(abuf, addr, displ);
-
-    if (opsize == OS_WORD) {
-        i = 2;
-    } else if (opsize == OS_LONG) {
-        i = 4;  
-    }
-
     dbuf = tcg_temp_new();
 
-    for (; i > 0; i--) {
-        mask = MASK << ((i - 1) * 8);
-        tcg_gen_andi_i32(dbuf, reg, mask);
-        tcg_gen_shri_i32(dbuf, dbuf, (i - 1) * 8);
-        gen_store(s, OS_BYTE, abuf, dbuf);
-        tcg_gen_addi_i32(abuf, abuf, 2);
+    if (op & 1) {
+        i = 4;
+    } else {
+        i = 2;
+    }
+
+    if (op & 2) {
+        for (; i > 0; i--) {
+            mask = MASK << ((i - 1) * 8);
+            tcg_gen_andi_i32(dbuf, reg, mask);
+            tcg_gen_shri_i32(dbuf, dbuf, (i - 1) * 8);
+            gen_store(s, OS_BYTE, abuf, dbuf);
+            if (i > 1) {
+                tcg_gen_addi_i32(abuf, abuf, 2);
+            }
+        }
+    } else {
+    	tcg_gen_movi_i32(reg, 0);
+        for (; i > 0; i--) {
+            dbuf = gen_load(s, OS_BYTE, abuf, 1);
+            tcg_gen_or_i32(reg, reg, dbuf);
+            if (i > 1) {
+            	tcg_gen_shli_i32(reg, reg, 8);
+                tcg_gen_addi_i32(abuf, abuf, 2);
+            }
+        }
     }
     tcg_temp_free(abuf);
     tcg_temp_free(dbuf);
