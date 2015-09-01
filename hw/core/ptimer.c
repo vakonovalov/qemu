@@ -9,6 +9,7 @@
 #include "qemu/timer.h"
 #include "hw/ptimer.h"
 #include "qemu/host-utils.h"
+#include "replay/replay.h"
 
 struct ptimer_state
 {
@@ -27,7 +28,11 @@ struct ptimer_state
 static void ptimer_trigger(ptimer_state *s)
 {
     if (s->bh) {
-        qemu_bh_schedule(s->bh);
+        if (replay_mode != REPLAY_MODE_NONE) {
+            replay_add_ptimer_event(s->bh, replay_get_current_step());
+        } else {
+            qemu_bh_schedule(s->bh);
+        }
     }
 }
 
