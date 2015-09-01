@@ -122,6 +122,7 @@ int main(int argc, char **argv)
 #include "qapi-event.h"
 #include "exec/semihost.h"
 #include "crypto/init.h"
+#include "replay/replay.h"
 
 #define MAX_VIRTIO_CONSOLES 1
 #define MAX_SCLP_CONSOLES 1
@@ -1661,15 +1662,21 @@ static void qemu_kill_report(void)
 static int qemu_reset_requested(void)
 {
     int r = reset_requested;
-    reset_requested = 0;
-    return r;
+    if (r && replay_checkpoint(CHECKPOINT_RESET_REQUESTED)) {
+        reset_requested = 0;
+        return r;
+    }
+    return false;
 }
 
 static int qemu_suspend_requested(void)
 {
     int r = suspend_requested;
-    suspend_requested = 0;
-    return r;
+    if (r && replay_checkpoint(CHECKPOINT_SUSPEND_REQUESTED)) {
+        suspend_requested = 0;
+        return r;
+    }
+    return false;
 }
 
 static WakeupReason qemu_wakeup_requested(void)
@@ -4500,6 +4507,10 @@ int main(int argc, char **argv, char **envp)
     }
     qemu_add_globals();
 
+    /* This checkpoint is required by replay to separate prior clock
+       reading from the other reads, because timer polling functions query
+       clock values from the log. */
+    replay_checkpoint(CHECKPOINT_INIT);
     qdev_machine_init();
 
     current_machine->ram_size = ram_size;
@@ -4615,6 +4626,10 @@ int main(int argc, char **argv, char **envp)
         exit(1);
     }
 
+    /* This checkpoint is required by replay to separate prior clock
+       reading from the other reads, because timer polling functions query
+       clock values from the log. */
+    replay_checkpoint(CHECKPOINT_RESET);
     qemu_system_reset(VMRESET_SILENT);
     register_global_state();
     if (loadvm) {

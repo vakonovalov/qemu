@@ -25,6 +25,7 @@
 #include "qemu/main-loop.h"
 #include "qemu/timer.h"
 #include "replay/replay.h"
+#include "sysemu/sysemu.h"
 
 #ifdef CONFIG_POSIX
 #include <pthread.h>
@@ -478,8 +479,32 @@ bool timerlist_run_timers(QEMUTimerList *timer_list)
     void *opaque;
 
     qemu_event_reset(&timer_list->timers_done_ev);
-    if (!timer_list->clock->enabled) {
+    if (!timer_list->clock->enabled || !timer_list->active_timers) {
         goto out;
+    }
+
+    switch (timer_list->clock->type) {
+    case QEMU_CLOCK_REALTIME:
+        break;
+    default:
+    case QEMU_CLOCK_VIRTUAL:
+        if ((replay_mode != REPLAY_MODE_NONE && !runstate_is_running())
+            || !replay_checkpoint(CHECKPOINT_CLOCK_VIRTUAL)) {
+            goto out;
+        }
+        break;
+    case QEMU_CLOCK_HOST:
+        if ((replay_mode != REPLAY_MODE_NONE && !runstate_is_running())
+            || !replay_checkpoint(CHECKPOINT_CLOCK_HOST)) {
+            goto out;
+        }
+        break;
+    case QEMU_CLOCK_VIRTUAL_RT:
+        if ((replay_mode != REPLAY_MODE_NONE && !runstate_is_running())
+            || !replay_checkpoint(CHECKPOINT_CLOCK_VIRTUAL_RT)) {
+            goto out;
+        }
+        break;
     }
 
     current_time = qemu_clock_get_ns(timer_list->clock->type);
@@ -545,11 +570,18 @@ int64_t timerlistgroup_deadline_ns(QEMUTimerListGroup *tlg)
 {
     int64_t deadline = -1;
     QEMUClockType type;
+    bool play = replay_mode == REPLAY_MODE_PLAY;
     for (type = 0; type < QEMU_CLOCK_MAX; type++) {
         if (qemu_clock_use_for_deadline(tlg->tl[type]->clock->type)) {
-            deadline = qemu_soonest_timeout(deadline,
-                                            timerlist_deadline_ns(
-                                                tlg->tl[type]));
+            if (!play || tlg->tl[type]->clock->type == QEMU_CLOCK_REALTIME) {
+                deadline = qemu_soonest_timeout(deadline,
+                                                timerlist_deadline_ns(
+                                                    tlg->tl[type]));
+            } else {
+                /* Read clock from the replay file and
+                   do not calculate the deadline, based on virtual clock. */
+                qemu_clock_get_ns(tlg->tl[type]->clock->type);
+            }
         }
     }
     return deadline;
