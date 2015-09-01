@@ -1615,12 +1615,17 @@ static inline void generate_exception_err(DisasContext *ctx, int excp, int err)
     gen_helper_raise_exception_err(cpu_env, texcp, terr);
     tcg_temp_free_i32(terr);
     tcg_temp_free_i32(texcp);
+    ctx->bstate = BS_EXCP;
 }
 
 static inline void generate_exception(DisasContext *ctx, int excp)
 {
-    save_cpu_state(ctx, 1);
     gen_helper_0e0i(raise_exception, excp);
+}
+
+static inline void generate_exception_end(DisasContext *ctx, int excp)
+{
+    generate_exception_err(ctx, excp, 0);
 }
 
 /* Floating point register moves. */
@@ -1753,7 +1758,7 @@ static inline void check_cp1_enabled(DisasContext *ctx)
 static inline void check_cop1x(DisasContext *ctx)
 {
     if (unlikely(!(ctx->hflags & MIPS_HFLAG_COP1X)))
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
 }
 
 /* Verify that the processor is running with 64-bit floating-point
@@ -1762,7 +1767,7 @@ static inline void check_cop1x(DisasContext *ctx)
 static inline void check_cp1_64bitmode(DisasContext *ctx)
 {
     if (unlikely(~ctx->hflags & (MIPS_HFLAG_F64 | MIPS_HFLAG_COP1X)))
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
 }
 
 /*
@@ -1779,7 +1784,7 @@ static inline void check_cp1_64bitmode(DisasContext *ctx)
 static inline void check_cp1_registers(DisasContext *ctx, int regs)
 {
     if (unlikely(!(ctx->hflags & MIPS_HFLAG_F64) && (regs & 1)))
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
 }
 
 /* Verify that the processor is running with DSP instructions enabled.
@@ -1790,9 +1795,9 @@ static inline void check_dsp(DisasContext *ctx)
 {
     if (unlikely(!(ctx->hflags & MIPS_HFLAG_DSP))) {
         if (ctx->insn_flags & ASE_DSP) {
-            generate_exception(ctx, EXCP_DSPDIS);
+            generate_exception_end(ctx, EXCP_DSPDIS);
         } else {
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
         }
     }
 }
@@ -1801,9 +1806,9 @@ static inline void check_dspr2(DisasContext *ctx)
 {
     if (unlikely(!(ctx->hflags & MIPS_HFLAG_DSPR2))) {
         if (ctx->insn_flags & ASE_DSP) {
-            generate_exception(ctx, EXCP_DSPDIS);
+            generate_exception_end(ctx, EXCP_DSPDIS);
         } else {
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
         }
     }
 }
@@ -1813,7 +1818,7 @@ static inline void check_dspr2(DisasContext *ctx)
 static inline void check_insn(DisasContext *ctx, int flags)
 {
     if (unlikely(!(ctx->insn_flags & flags))) {
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
     }
 }
 
@@ -1823,7 +1828,7 @@ static inline void check_insn(DisasContext *ctx, int flags)
 static inline void check_insn_opc_removed(DisasContext *ctx, int flags)
 {
     if (unlikely(ctx->insn_flags & flags)) {
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
     }
 }
 
@@ -1843,7 +1848,7 @@ static inline void check_ps(DisasContext *ctx)
 static inline void check_mips_64(DisasContext *ctx)
 {
     if (unlikely(!(ctx->hflags & MIPS_HFLAG_64)))
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
 }
 #endif
 
@@ -2135,7 +2140,6 @@ static void gen_ld(DisasContext *ctx, uint32_t opc,
         break;
     case OPC_LLD:
     case R6_OPC_LLD:
-        save_cpu_state(ctx, 1);
         op_ld_lld(t0, t0, ctx);
         gen_store_gpr(t0, rt);
         opn = "lld";
@@ -2283,7 +2287,6 @@ static void gen_ld(DisasContext *ctx, uint32_t opc,
         break;
     case OPC_LL:
     case R6_OPC_LL:
-        save_cpu_state(ctx, 1);
         op_ld_ll(t0, t0, ctx);
         gen_store_gpr(t0, rt);
         opn = "ll";
@@ -2312,12 +2315,10 @@ static void gen_st (DisasContext *ctx, uint32_t opc, int rt,
         opn = "sd";
         break;
     case OPC_SDL:
-        save_cpu_state(ctx, 1);
         gen_helper_0e2i(sdl, t1, t0, ctx->mem_idx);
         opn = "sdl";
         break;
     case OPC_SDR:
-        save_cpu_state(ctx, 1);
         gen_helper_0e2i(sdr, t1, t0, ctx->mem_idx);
         opn = "sdr";
         break;
@@ -2337,12 +2338,10 @@ static void gen_st (DisasContext *ctx, uint32_t opc, int rt,
         opn = "sb";
         break;
     case OPC_SWL:
-        save_cpu_state(ctx, 1);
         gen_helper_0e2i(swl, t1, t0, ctx->mem_idx);
         opn = "swl";
         break;
     case OPC_SWR:
-        save_cpu_state(ctx, 1);
         gen_helper_0e2i(swr, t1, t0, ctx->mem_idx);
         opn = "swr";
         break;
@@ -2374,14 +2373,12 @@ static void gen_st_cond (DisasContext *ctx, uint32_t opc, int rt,
 #if defined(TARGET_MIPS64)
     case OPC_SCD:
     case R6_OPC_SCD:
-        save_cpu_state(ctx, 1);
         op_st_scd(t1, t0, rt, ctx);
         opn = "scd";
         break;
 #endif
     case OPC_SC:
     case R6_OPC_SC:
-        save_cpu_state(ctx, 1);
         op_st_sc(t1, t0, rt, ctx);
         opn = "sc";
         break;
@@ -2445,7 +2442,7 @@ static void gen_flt_ldst (DisasContext *ctx, uint32_t opc, int ft,
         break;
     default:
         MIPS_INVAL(opn);
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         goto out;
     }
     (void)opn; /* avoid a compiler warning */
@@ -3275,7 +3272,7 @@ static inline void gen_pcrel(DisasContext *ctx, int opc, target_ulong pc,
 #endif
         default:
             MIPS_INVAL("OPC_PCREL");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -3504,7 +3501,7 @@ static void gen_r6_muldiv(DisasContext *ctx, int opc, int rd, int rs, int rt)
 #endif
     default:
         MIPS_INVAL(opn);
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         goto out;
     }
     (void)opn; /* avoid a compiler warning */
@@ -3723,7 +3720,7 @@ static void gen_muldiv(DisasContext *ctx, uint32_t opc,
         break;
     default:
         MIPS_INVAL(opn);
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         goto out;
     }
     (void)opn; /* avoid a compiler warning */
@@ -3802,7 +3799,7 @@ static void gen_mul_vr54xx (DisasContext *ctx, uint32_t opc,
         break;
     default:
         MIPS_INVAL("mul vr54xx");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         goto out;
     }
     gen_store_gpr(t0, rd);
@@ -4327,7 +4324,7 @@ static void gen_loongson_multimedia(DisasContext *ctx, int rd, int rs, int rt)
            FD field is the CC field?  */
     default:
         MIPS_INVAL(opn);
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         return;
     }
 
@@ -4390,7 +4387,7 @@ static void gen_trap (DisasContext *ctx, uint32_t opc,
         case OPC_TGEU:  /* rs >= rs unsigned */
         case OPC_TGEIU: /* r0 >= 0  unsigned */
             /* Always trap */
-            generate_exception(ctx, EXCP_TRAP);
+            generate_exception_end(ctx, EXCP_TRAP);
             break;
         case OPC_TLT:   /* rs < rs           */
         case OPC_TLTI:  /* r0 < 0            */
@@ -4450,7 +4447,7 @@ static inline void gen_goto_tb(DisasContext *ctx, int n, target_ulong dest)
         gen_save_pc(dest);
         if (ctx->singlestep_enabled) {
             save_cpu_state(ctx, 0);
-            gen_helper_0e0i(raise_exception, EXCP_DEBUG);
+            gen_helper_raise_exception_debug(cpu_env);
         }
         tcg_gen_exit_tb(0);
     }
@@ -4473,7 +4470,7 @@ static void gen_compute_branch (DisasContext *ctx, uint32_t opc,
         LOG_DISAS("Branch in delay / forbidden slot at PC 0x"
                   TARGET_FMT_lx "\n", ctx->pc);
 #endif
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         goto out;
     }
 
@@ -4533,14 +4530,14 @@ static void gen_compute_branch (DisasContext *ctx, uint32_t opc,
             /* Hint = 0 is JR/JALR, hint 16 is JR.HB/JALR.HB, the
                others are reserved. */
             MIPS_INVAL("jump hint");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             goto out;
         }
         gen_load_gpr(btarget, rs);
         break;
     default:
         MIPS_INVAL("branch/jump");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         goto out;
     }
     if (bcond_compute == 0) {
@@ -4613,7 +4610,7 @@ static void gen_compute_branch (DisasContext *ctx, uint32_t opc,
             break;
         default:
             MIPS_INVAL("branch/jump");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             goto out;
         }
     } else {
@@ -4706,7 +4703,7 @@ static void gen_compute_branch (DisasContext *ctx, uint32_t opc,
             break;
         default:
             MIPS_INVAL("conditional branch/jump");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             goto out;
         }
     }
@@ -4802,7 +4799,7 @@ static void gen_bitops (DisasContext *ctx, uint32_t opc, int rt,
     default:
 fail:
         MIPS_INVAL("bitops");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         tcg_temp_free(t0);
         tcg_temp_free(t1);
         return;
@@ -4875,7 +4872,7 @@ static void gen_bshfl (DisasContext *ctx, uint32_t op2, int rt, int rd)
 #endif
     default:
         MIPS_INVAL("bsfhl");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         tcg_temp_free(t0);
         return;
     }
@@ -7942,7 +7939,7 @@ static void gen_mftr(CPUMIPSState *env, DisasContext *ctx, int rt, int rd,
 die:
     tcg_temp_free(t0);
     LOG_DISAS("mftr (reg %d u %d sel %d h %d)\n", rt, u, sel, h);
-    generate_exception(ctx, EXCP_RI);
+    generate_exception_end(ctx, EXCP_RI);
 }
 
 static void gen_mttr(CPUMIPSState *env, DisasContext *ctx, int rd, int rt,
@@ -8123,7 +8120,6 @@ static void gen_mttr(CPUMIPSState *env, DisasContext *ctx, int rd, int rt,
         break;
     case 3:
         /* XXX: For now we support only a single FPU context. */
-        save_cpu_state(ctx, 1);
         {
             TCGv_i32 fs_tmp = tcg_const_i32(rd);
 
@@ -8147,7 +8143,7 @@ static void gen_mttr(CPUMIPSState *env, DisasContext *ctx, int rd, int rt,
 die:
     tcg_temp_free(t0);
     LOG_DISAS("mttr (reg %d u %d sel %d h %d)\n", rd, u, sel, h);
-    generate_exception(ctx, EXCP_RI);
+    generate_exception_end(ctx, EXCP_RI);
 }
 
 static void gen_cp0 (CPUMIPSState *env, DisasContext *ctx, uint32_t opc, int rt, int rd)
@@ -8304,7 +8300,7 @@ static void gen_cp0 (CPUMIPSState *env, DisasContext *ctx, uint32_t opc, int rt,
         }
         if (!(ctx->hflags & MIPS_HFLAG_DM)) {
             MIPS_INVAL(opn);
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
         } else {
             gen_helper_deret(cpu_env);
             ctx->bstate = BS_EXCP;
@@ -8328,7 +8324,7 @@ static void gen_cp0 (CPUMIPSState *env, DisasContext *ctx, uint32_t opc, int rt,
     default:
  die:
         MIPS_INVAL(opn);
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         return;
     }
     (void)opn; /* avoid a compiler warning */
@@ -8346,7 +8342,7 @@ static void gen_compute_branch1(DisasContext *ctx, uint32_t op,
 
     if ((ctx->insn_flags & ISA_MIPS32R6) && (ctx->hflags & MIPS_HFLAG_BMASK)) {
         MIPS_DEBUG("CTI in delay / forbidden slot");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         goto out;
     }
 
@@ -8444,7 +8440,7 @@ static void gen_compute_branch1(DisasContext *ctx, uint32_t op,
         break;
     default:
         MIPS_INVAL(opn);
-        generate_exception (ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         goto out;
     }
     (void)opn; /* avoid a compiler warning */
@@ -8470,7 +8466,7 @@ static void gen_compute_branch1_r6(DisasContext *ctx, uint32_t op,
         LOG_DISAS("Branch in delay / forbidden slot at PC 0x" TARGET_FMT_lx
                   "\n", ctx->pc);
 #endif
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         goto out;
     }
 
@@ -8492,7 +8488,7 @@ static void gen_compute_branch1_r6(DisasContext *ctx, uint32_t op,
         break;
     default:
         MIPS_INVAL(opn);
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         goto out;
     }
 
@@ -8764,7 +8760,7 @@ static void gen_cp1 (DisasContext *ctx, uint32_t opc, int rt, int fs)
         break;
     case OPC_CTC1:
         gen_load_gpr(t0, rt);
-        save_cpu_state(ctx, 1);
+        save_cpu_state(ctx, 0);
         {
             TCGv_i32 fs_tmp = tcg_const_i32(fs);
 
@@ -8811,7 +8807,7 @@ static void gen_cp1 (DisasContext *ctx, uint32_t opc, int rt, int fs)
         break;
     default:
         MIPS_INVAL(opn);
-        generate_exception (ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         goto out;
     }
     (void)opn; /* avoid a compiler warning */
@@ -8945,7 +8941,7 @@ static void gen_sel_s(DisasContext *ctx, enum fopcode op1, int fd, int ft,
         break;
     default:
         MIPS_INVAL("gen_sel_s");
-        generate_exception (ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
 
@@ -8982,7 +8978,7 @@ static void gen_sel_d(DisasContext *ctx, enum fopcode op1, int fd, int ft,
         break;
     default:
         MIPS_INVAL("gen_sel_d");
-        generate_exception (ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
 
@@ -10482,7 +10478,7 @@ static void gen_farith (DisasContext *ctx, enum fopcode op1,
         break;
     default:
         MIPS_INVAL(opn);
-        generate_exception (ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         return;
     }
     (void)opn; /* avoid a compiler warning */
@@ -10860,7 +10856,7 @@ static void gen_flt3_arith (DisasContext *ctx, uint32_t opc,
         break;
     default:
         MIPS_INVAL(opn);
-        generate_exception (ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         return;
     }
     (void)opn; /* avoid a compiler warning */
@@ -10881,22 +10877,18 @@ static void gen_rdhwr(DisasContext *ctx, int rt, int rd)
 
     switch (rd) {
     case 0:
-        save_cpu_state(ctx, 1);
         gen_helper_rdhwr_cpunum(t0, cpu_env);
         gen_store_gpr(t0, rt);
         break;
     case 1:
-        save_cpu_state(ctx, 1);
         gen_helper_rdhwr_synci_step(t0, cpu_env);
         gen_store_gpr(t0, rt);
         break;
     case 2:
-        save_cpu_state(ctx, 1);
         gen_helper_rdhwr_cc(t0, cpu_env);
         gen_store_gpr(t0, rt);
         break;
     case 3:
-        save_cpu_state(ctx, 1);
         gen_helper_rdhwr_ccres(t0, cpu_env);
         gen_store_gpr(t0, rt);
         break;
@@ -10913,13 +10905,13 @@ static void gen_rdhwr(DisasContext *ctx, int rt, int rd)
                           offsetof(CPUMIPSState, active_tc.CP0_UserLocal));
             gen_store_gpr(t0, rt);
         } else {
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
         }
         break;
 #endif
     default:            /* Invalid */
         MIPS_INVAL("rdhwr");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
     tcg_temp_free(t0);
@@ -10996,7 +10988,7 @@ static void gen_branch(DisasContext *ctx, int insn_bytes)
             }
             if (ctx->singlestep_enabled) {
                 save_cpu_state(ctx, 0);
-                gen_helper_0e0i(raise_exception, EXCP_DEBUG);
+                gen_helper_raise_exception_debug(cpu_env);
             }
             tcg_gen_exit_tb(0);
             break;
@@ -11021,7 +11013,7 @@ static void gen_compute_compact_branch(DisasContext *ctx, uint32_t opc,
         LOG_DISAS("Branch in delay / forbidden slot at PC 0x" TARGET_FMT_lx
                   "\n", ctx->pc);
 #endif
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         goto out;
     }
 
@@ -11083,7 +11075,7 @@ static void gen_compute_compact_branch(DisasContext *ctx, uint32_t opc,
         break;
     default:
         MIPS_INVAL("Compact branch/jump");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         goto out;
     }
 
@@ -11104,7 +11096,7 @@ static void gen_compute_compact_branch(DisasContext *ctx, uint32_t opc,
             break;
         default:
             MIPS_INVAL("Compact branch/jump");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             goto out;
         }
 
@@ -11227,7 +11219,7 @@ static void gen_compute_compact_branch(DisasContext *ctx, uint32_t opc,
             break;
         default:
             MIPS_INVAL("Compact conditional branch/jump");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             goto out;
         }
 
@@ -11402,7 +11394,7 @@ static void gen_mips16_save (DisasContext *ctx,
         args = 4;
         break;
     default:
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         return;
     }
 
@@ -11498,7 +11490,7 @@ static void gen_mips16_save (DisasContext *ctx,
         astatic = 4;
         break;
     default:
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         return;
     }
 
@@ -11604,7 +11596,7 @@ static void gen_mips16_restore (DisasContext *ctx,
         astatic = 4;
         break;
     default:
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         return;
     }
 
@@ -11635,7 +11627,7 @@ static void gen_addiupc (DisasContext *ctx, int rx, int imm,
     TCGv t0;
 
     if (extended && (ctx->hflags & MIPS_HFLAG_BMASK)) {
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         return;
     }
 
@@ -11684,7 +11676,7 @@ static void decode_i64_mips16 (DisasContext *ctx,
         check_insn(ctx, ISA_MIPS3);
         check_mips_64(ctx);
         if (extended && (ctx->hflags & MIPS_HFLAG_BMASK)) {
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
         } else {
             offset = extended ? offset : offset << 3;
             gen_ld(ctx, OPC_LDPC, ry, 0, offset);
@@ -11759,7 +11751,7 @@ static int decode_extended_mips16_opc (CPUMIPSState *env, DisasContext *ctx)
             check_mips_64(ctx);
             gen_shift_imm(ctx, OPC_DSLL, rx, ry, sa);
 #else
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
 #endif
             break;
         case 0x2:
@@ -11787,7 +11779,7 @@ static int decode_extended_mips16_opc (CPUMIPSState *env, DisasContext *ctx)
             check_mips_64(ctx);
             gen_arith_imm(ctx, OPC_DADDIU, ry, rx, imm);
 #else
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
 #endif
         } else {
             gen_arith_imm(ctx, OPC_ADDIU, ry, rx, imm);
@@ -11839,7 +11831,7 @@ static int decode_extended_mips16_opc (CPUMIPSState *env, DisasContext *ctx)
             }
             break;
         default:
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -11902,7 +11894,7 @@ static int decode_extended_mips16_opc (CPUMIPSState *env, DisasContext *ctx)
         break;
 #endif
     default:
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
 
@@ -11983,7 +11975,7 @@ static int decode_mips16_opc (CPUMIPSState *env, DisasContext *ctx)
             check_mips_64(ctx);
             gen_shift_imm(ctx, OPC_DSLL, rx, ry, sa);
 #else
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
 #endif
             break;
         case 0x2:
@@ -12011,7 +12003,7 @@ static int decode_mips16_opc (CPUMIPSState *env, DisasContext *ctx)
                 check_mips_64(ctx);
                 gen_arith_imm(ctx, OPC_DADDIU, ry, rx, imm);
 #else
-                generate_exception(ctx, EXCP_RI);
+                generate_exception_end(ctx, EXCP_RI);
 #endif
             } else {
                 gen_arith_imm(ctx, OPC_ADDIU, ry, rx, imm);
@@ -12095,7 +12087,7 @@ static int decode_mips16_opc (CPUMIPSState *env, DisasContext *ctx)
                 gen_arith(ctx, OPC_ADDU, ry, reg32, 0);
                 break;
             default:
-                generate_exception(ctx, EXCP_RI);
+                generate_exception_end(ctx, EXCP_RI);
                 break;
             }
         }
@@ -12185,7 +12177,7 @@ static int decode_mips16_opc (CPUMIPSState *env, DisasContext *ctx)
                 break;
 #endif
             default:
-                generate_exception(ctx, EXCP_RI);
+                generate_exception_end(ctx, EXCP_RI);
                 goto done;
             }
 
@@ -12224,7 +12216,7 @@ static int decode_mips16_opc (CPUMIPSState *env, DisasContext *ctx)
                  *      when in debug mode...
                  */
                 check_insn(ctx, ISA_MIPS32);
-                generate_exception(ctx, EXCP_DBp);
+                generate_exception_end(ctx, EXCP_DBp);
             }
             break;
         case RR_SLT:
@@ -12234,7 +12226,7 @@ static int decode_mips16_opc (CPUMIPSState *env, DisasContext *ctx)
             gen_slt(ctx, OPC_SLTU, 24, rx, ry);
             break;
         case RR_BREAK:
-            generate_exception(ctx, EXCP_BREAK);
+            generate_exception_end(ctx, EXCP_BREAK);
             break;
         case RR_SLLV:
             gen_shift(ctx, OPC_SLLV, ry, rx, ry);
@@ -12301,7 +12293,7 @@ static int decode_mips16_opc (CPUMIPSState *env, DisasContext *ctx)
                 break;
 #endif
             default:
-                generate_exception(ctx, EXCP_RI);
+                generate_exception_end(ctx, EXCP_RI);
                 break;
             }
             break;
@@ -12365,7 +12357,7 @@ static int decode_mips16_opc (CPUMIPSState *env, DisasContext *ctx)
             break;
 #endif
         default:
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -12380,7 +12372,7 @@ static int decode_mips16_opc (CPUMIPSState *env, DisasContext *ctx)
         break;
 #endif
     default:
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
 
@@ -13032,7 +13024,7 @@ static void gen_ldst_multiple (DisasContext *ctx, uint32_t opc, int reglist,
     TCGv_i32 t2;
 
     if (ctx->hflags & MIPS_HFLAG_BMASK) {
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         return;
     }
 
@@ -13162,7 +13154,7 @@ static void gen_pool16c_insn(DisasContext *ctx)
         gen_HILO(ctx, OPC_MFLO, 0, uMIPS_RS5(ctx->opcode));
         break;
     case BREAK16:
-        generate_exception(ctx, EXCP_BREAK);
+        generate_exception_end(ctx, EXCP_BREAK);
         break;
     case SDBBP16:
         if (is_uhi(extract32(ctx->opcode, 0, 4))) {
@@ -13172,7 +13164,7 @@ static void gen_pool16c_insn(DisasContext *ctx)
              *      when in debug mode...
              */
             check_insn(ctx, ISA_MIPS32);
-            generate_exception(ctx, EXCP_DBp);
+            generate_exception_end(ctx, EXCP_DBp);
         }
         break;
     case JRADDIUSP + 0:
@@ -13186,7 +13178,7 @@ static void gen_pool16c_insn(DisasContext *ctx)
         }
         break;
     default:
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
 }
@@ -13326,7 +13318,7 @@ static void gen_ldst_pair (DisasContext *ctx, uint32_t opc, int rd,
     TCGv t0, t1;
 
     if (ctx->hflags & MIPS_HFLAG_BMASK || rd == 31) {
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         return;
     }
 
@@ -13338,7 +13330,7 @@ static void gen_ldst_pair (DisasContext *ctx, uint32_t opc, int rd,
     switch (opc) {
     case LWP:
         if (rd == base) {
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             return;
         }
         tcg_gen_qemu_ld_tl(t1, t0, ctx->mem_idx, MO_TESL);
@@ -13361,7 +13353,7 @@ static void gen_ldst_pair (DisasContext *ctx, uint32_t opc, int rd,
 #ifdef TARGET_MIPS64
     case LDP:
         if (rd == base) {
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             return;
         }
         tcg_gen_qemu_ld_tl(t1, t0, ctx->mem_idx, MO_TEQ);
@@ -13666,8 +13658,7 @@ static void gen_pool32axf (CPUMIPSState *env, DisasContext *ctx, int rt, int rs)
             /* NOP */
             break;
         case SYSCALL:
-            generate_exception(ctx, EXCP_SYSCALL);
-            ctx->bstate = BS_STOP;
+            generate_exception_end(ctx, EXCP_SYSCALL);
             break;
         case SDBBP:
             if (is_uhi(extract32(ctx->opcode, 16, 10))) {
@@ -13675,9 +13666,9 @@ static void gen_pool32axf (CPUMIPSState *env, DisasContext *ctx, int rt, int rs)
             } else {
                 check_insn(ctx, ISA_MIPS32);
                 if (ctx->hflags & MIPS_HFLAG_SBRI) {
-                    generate_exception(ctx, EXCP_RI);
+                    generate_exception_end(ctx, EXCP_RI);
                 } else {
-                    generate_exception(ctx, EXCP_DBp);
+                    generate_exception_end(ctx, EXCP_DBp);
                 }
             }
             break;
@@ -13725,7 +13716,7 @@ static void gen_pool32axf (CPUMIPSState *env, DisasContext *ctx, int rt, int rs)
     default:
     pool32axf_invalid:
         MIPS_INVAL("pool32axf");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
 }
@@ -13993,7 +13984,7 @@ static void gen_pool32fxf(DisasContext *ctx, int rt, int rs)
         break;
     default:
         MIPS_INVAL("pool32fxf");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
 }
@@ -14190,12 +14181,12 @@ static void decode_micromips32_opc(CPUMIPSState *env, DisasContext *ctx)
             gen_pool32axf(env, ctx, rt, rs);
             break;
         case 0x07:
-            generate_exception(ctx, EXCP_BREAK);
+            generate_exception_end(ctx, EXCP_BREAK);
             break;
         default:
         pool32a_invalid:
                 MIPS_INVAL("pool32a");
-                generate_exception(ctx, EXCP_RI);
+                generate_exception_end(ctx, EXCP_RI);
                 break;
         }
         break;
@@ -14235,7 +14226,7 @@ static void decode_micromips32_opc(CPUMIPSState *env, DisasContext *ctx)
             break;
         default:
             MIPS_INVAL("pool32b");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -14715,7 +14706,7 @@ static void decode_micromips32_opc(CPUMIPSState *env, DisasContext *ctx)
             default:
             pool32f_invalid:
                 MIPS_INVAL("pool32f");
-                generate_exception(ctx, EXCP_RI);
+                generate_exception_end(ctx, EXCP_RI);
                 break;
             }
         } else {
@@ -14871,7 +14862,7 @@ static void decode_micromips32_opc(CPUMIPSState *env, DisasContext *ctx)
             /* Fall through */
         default:
             MIPS_INVAL("pool32i");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -14960,7 +14951,7 @@ static void decode_micromips32_opc(CPUMIPSState *env, DisasContext *ctx)
             break;
         default:
             MIPS_INVAL("pool32c");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -15238,7 +15229,7 @@ static void decode_micromips32_opc(CPUMIPSState *env, DisasContext *ctx)
         gen_st(ctx, mips32_op, rt, rs, imm);
         break;
     default:
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
 }
@@ -15250,8 +15241,7 @@ static int decode_micromips_opc (CPUMIPSState *env, DisasContext *ctx)
     /* make sure instructions are on a halfword boundary */
     if (ctx->pc & 0x1) {
         env->CP0_BadVAddr = ctx->pc;
-        generate_exception(ctx, EXCP_AdEL);
-        ctx->bstate = BS_STOP;
+        generate_exception_end(ctx, EXCP_AdEL);
         return 2;
     }
 
@@ -15270,9 +15260,7 @@ static int decode_micromips_opc (CPUMIPSState *env, DisasContext *ctx)
         case 7:
         /* LB32, LH32, LWC132, LDC132, LW32 */
             if (ctx->hflags & MIPS_HFLAG_BDS16) {
-                generate_exception(ctx, EXCP_RI);
-                /* Just stop translation; the user is confused.  */
-                ctx->bstate = BS_STOP;
+                generate_exception_end(ctx, EXCP_RI);
                 return 2;
             }
             break;
@@ -15283,9 +15271,7 @@ static int decode_micromips_opc (CPUMIPSState *env, DisasContext *ctx)
         case 3:
         /* MOVE16, ANDI16, POOL16D, POOL16E, BEQZ16, BNEZ16, B16, LI16 */
             if (ctx->hflags & MIPS_HFLAG_BDS32) {
-                generate_exception(ctx, EXCP_RI);
-                /* Just stop translation; the user is confused.  */
-                ctx->bstate = BS_STOP;
+                generate_exception_end(ctx, EXCP_RI);
                 return 2;
             }
             break;
@@ -15357,7 +15343,7 @@ static int decode_micromips_opc (CPUMIPSState *env, DisasContext *ctx)
     case POOL16F:
         check_insn_opc_removed(ctx, ISA_MIPS32R6);
         if (ctx->opcode & 1) {
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
         } else {
             /* MOVEP */
             int enc_dest = uMIPS_RD(ctx->opcode);
@@ -15495,7 +15481,7 @@ static int decode_micromips_opc (CPUMIPSState *env, DisasContext *ctx)
     case RES_29:
     case RES_31:
     case RES_39:
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     default:
         decode_micromips32_opc(env, ctx);
@@ -16133,7 +16119,7 @@ static void gen_mipsdsp_shift(DisasContext *ctx, uint32_t opc,
                 break;
             default:            /* Invalid */
                 MIPS_INVAL("MASK SHLL.QB");
-                generate_exception(ctx, EXCP_RI);
+                generate_exception_end(ctx, EXCP_RI);
                 break;
             }
             break;
@@ -16248,7 +16234,7 @@ static void gen_mipsdsp_shift(DisasContext *ctx, uint32_t opc,
             break;
         default:            /* Invalid */
             MIPS_INVAL("MASK SHLL.OB");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -16957,7 +16943,7 @@ static void gen_mipsdsp_append(CPUMIPSState *env, DisasContext *ctx,
             break;
         default:            /* Invalid */
             MIPS_INVAL("MASK APPEND");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -16991,7 +16977,7 @@ static void gen_mipsdsp_append(CPUMIPSState *env, DisasContext *ctx,
             break;
         default:            /* Invalid */
             MIPS_INVAL("MASK DAPPEND");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -17264,7 +17250,7 @@ static void decode_opc_special_r6(CPUMIPSState *env, DisasContext *ctx)
             break;
         default:
             MIPS_INVAL("special_r6 muldiv");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -17279,7 +17265,7 @@ static void decode_opc_special_r6(CPUMIPSState *env, DisasContext *ctx)
                We need additionally to check other fields */
             gen_cl(ctx, op1, rd, rs);
         } else {
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
         }
         break;
     case R6_OPC_SDBBP:
@@ -17287,9 +17273,9 @@ static void decode_opc_special_r6(CPUMIPSState *env, DisasContext *ctx)
             gen_helper_do_semihosting(cpu_env);
         } else {
             if (ctx->hflags & MIPS_HFLAG_SBRI) {
-                generate_exception(ctx, EXCP_RI);
+                generate_exception_end(ctx, EXCP_RI);
             } else {
-                generate_exception(ctx, EXCP_DBp);
+                generate_exception_end(ctx, EXCP_DBp);
             }
         }
         break;
@@ -17306,7 +17292,7 @@ static void decode_opc_special_r6(CPUMIPSState *env, DisasContext *ctx)
             check_mips_64(ctx);
             gen_cl(ctx, op1, rd, rs);
         } else {
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
         }
         break;
     case OPC_DMULT ... OPC_DDIVU:
@@ -17325,14 +17311,14 @@ static void decode_opc_special_r6(CPUMIPSState *env, DisasContext *ctx)
             break;
         default:
             MIPS_INVAL("special_r6 muldiv");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
 #endif
     default:            /* Invalid */
         MIPS_INVAL("special_r6");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
 }
@@ -17400,16 +17386,16 @@ static void decode_opc_special_legacy(CPUMIPSState *env, DisasContext *ctx)
     case OPC_SPIM:
 #ifdef MIPS_STRICT_STANDARD
         MIPS_INVAL("SPIM");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
 #else
         /* Implemented as RI exception for now. */
         MIPS_INVAL("spim (unofficial)");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
 #endif
         break;
     default:            /* Invalid */
         MIPS_INVAL("special_legacy");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
 }
@@ -17432,7 +17418,7 @@ static void decode_opc_special(CPUMIPSState *env, DisasContext *ctx)
             if ((ctx->insn_flags & ISA_MIPS32R6) &&
                 (ctx->hflags & MIPS_HFLAG_BMASK)) {
                 MIPS_DEBUG("CTI in delay / forbidden slot");
-                generate_exception(ctx, EXCP_RI);
+                generate_exception_end(ctx, EXCP_RI);
                 break;
             }
         }
@@ -17452,7 +17438,7 @@ static void decode_opc_special(CPUMIPSState *env, DisasContext *ctx)
             gen_shift_imm(ctx, op1, rd, rt, sa);
             break;
         default:
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -17475,7 +17461,7 @@ static void decode_opc_special(CPUMIPSState *env, DisasContext *ctx)
             gen_shift(ctx, op1, rd, rs, rt);
             break;
         default:
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -17505,18 +17491,17 @@ static void decode_opc_special(CPUMIPSState *env, DisasContext *ctx)
             /* Pmon entry point, also R4010 selsl */
 #ifdef MIPS_STRICT_STANDARD
             MIPS_INVAL("PMON / selsl");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
 #else
             gen_helper_0e0i(pmon, sa);
 #endif
         }
         break;
     case OPC_SYSCALL:
-        generate_exception(ctx, EXCP_SYSCALL);
-        ctx->bstate = BS_STOP;
+        generate_exception_end(ctx, EXCP_SYSCALL);
         break;
     case OPC_BREAK:
-        generate_exception(ctx, EXCP_BREAK);
+        generate_exception_end(ctx, EXCP_BREAK);
         break;
     case OPC_SYNC:
         check_insn(ctx, ISA_MIPS2);
@@ -17547,7 +17532,7 @@ static void decode_opc_special(CPUMIPSState *env, DisasContext *ctx)
             gen_shift_imm(ctx, op1, rd, rt, sa);
             break;
         default:
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -17565,7 +17550,7 @@ static void decode_opc_special(CPUMIPSState *env, DisasContext *ctx)
             gen_shift_imm(ctx, op1, rd, rt, sa);
             break;
         default:
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -17594,7 +17579,7 @@ static void decode_opc_special(CPUMIPSState *env, DisasContext *ctx)
             gen_shift(ctx, op1, rd, rs, rt);
             break;
         default:
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -17657,7 +17642,7 @@ static void decode_opc_special2_legacy(CPUMIPSState *env, DisasContext *ctx)
              *      when in debug mode...
              */
             check_insn(ctx, ISA_MIPS32);
-            generate_exception(ctx, EXCP_DBp);
+            generate_exception_end(ctx, EXCP_DBp);
         }
         break;
 #if defined(TARGET_MIPS64)
@@ -17679,7 +17664,7 @@ static void decode_opc_special2_legacy(CPUMIPSState *env, DisasContext *ctx)
 #endif
     default:            /* Invalid */
         MIPS_INVAL("special2_legacy");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
 }
@@ -17701,7 +17686,7 @@ static void decode_opc_special3_r6(CPUMIPSState *env, DisasContext *ctx)
     case R6_OPC_PREF:
         if (rt >= 24) {
             /* hint codes 24-31 are reserved and signal RI */
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
         }
         /* Treat as NOP. */
         break;
@@ -17760,7 +17745,7 @@ static void decode_opc_special3_r6(CPUMIPSState *env, DisasContext *ctx)
 #endif
     default:            /* Invalid */
         MIPS_INVAL("special3_r6");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
 }
@@ -17806,13 +17791,13 @@ static void decode_opc_special3_legacy(CPUMIPSState *env, DisasContext *ctx)
                 break;
             default:
                 MIPS_INVAL("MASK ADDUH.QB");
-                generate_exception(ctx, EXCP_RI);
+                generate_exception_end(ctx, EXCP_RI);
                 break;
             }
         } else if (ctx->insn_flags & INSN_LOONGSON2E) {
             gen_loongson_integer(ctx, op1, rd, rs, rt);
         } else {
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
         }
         break;
     case OPC_LX_DSP:
@@ -17828,7 +17813,7 @@ static void decode_opc_special3_legacy(CPUMIPSState *env, DisasContext *ctx)
             break;
         default:            /* Invalid */
             MIPS_INVAL("MASK LX");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -17859,7 +17844,7 @@ static void decode_opc_special3_legacy(CPUMIPSState *env, DisasContext *ctx)
             break;
         default:
             MIPS_INVAL("MASK ABSQ_S.PH");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -17896,7 +17881,7 @@ static void decode_opc_special3_legacy(CPUMIPSState *env, DisasContext *ctx)
             break;
         default:            /* Invalid */
             MIPS_INVAL("MASK ADDU.QB");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
 
         }
@@ -17936,7 +17921,7 @@ static void decode_opc_special3_legacy(CPUMIPSState *env, DisasContext *ctx)
             break;
         default:            /* Invalid */
             MIPS_INVAL("MASK CMPU.EQ.QB");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -17972,7 +17957,7 @@ static void decode_opc_special3_legacy(CPUMIPSState *env, DisasContext *ctx)
             break;
         default:            /* Invalid */
             MIPS_INVAL("MASK DPAW.PH");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -18003,7 +17988,7 @@ static void decode_opc_special3_legacy(CPUMIPSState *env, DisasContext *ctx)
             }
         default:            /* Invalid */
             MIPS_INVAL("MASK INSV");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -18038,7 +18023,7 @@ static void decode_opc_special3_legacy(CPUMIPSState *env, DisasContext *ctx)
             break;
         default:            /* Invalid */
             MIPS_INVAL("MASK EXTR.W");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -18081,7 +18066,7 @@ static void decode_opc_special3_legacy(CPUMIPSState *env, DisasContext *ctx)
             break;
         default:            /* Invalid */
             MIPS_INVAL("MASK ABSQ_S.QH");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -18120,7 +18105,7 @@ static void decode_opc_special3_legacy(CPUMIPSState *env, DisasContext *ctx)
             break;
         default:            /* Invalid */
             MIPS_INVAL("MASK ADDU.OB");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -18165,7 +18150,7 @@ static void decode_opc_special3_legacy(CPUMIPSState *env, DisasContext *ctx)
             break;
         default:            /* Invalid */
             MIPS_INVAL("MASK CMPU_EQ.OB");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -18202,7 +18187,7 @@ static void decode_opc_special3_legacy(CPUMIPSState *env, DisasContext *ctx)
             break;
         default:            /* Invalid */
             MIPS_INVAL("MASK EXTR.W");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -18241,7 +18226,7 @@ static void decode_opc_special3_legacy(CPUMIPSState *env, DisasContext *ctx)
             break;
         default:            /* Invalid */
             MIPS_INVAL("MASK DPAQ.W.QH");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -18272,7 +18257,7 @@ static void decode_opc_special3_legacy(CPUMIPSState *env, DisasContext *ctx)
         }
         default:            /* Invalid */
             MIPS_INVAL("MASK DINSV");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -18282,7 +18267,7 @@ static void decode_opc_special3_legacy(CPUMIPSState *env, DisasContext *ctx)
 #endif
     default:            /* Invalid */
         MIPS_INVAL("special3_legacy");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
 }
@@ -18363,7 +18348,6 @@ static void decode_opc_special3(CPUMIPSState *env, DisasContext *ctx)
         {
             TCGv t0 = tcg_temp_new();
 
-            save_cpu_state(ctx, 1);
             gen_load_gpr(t0, rs);
             gen_helper_yield(t0, cpu_env, t0);
             gen_store_gpr(t0, rd);
@@ -18384,16 +18368,16 @@ static inline int check_msa_access(DisasContext *ctx)
 {
     if (unlikely((ctx->hflags & MIPS_HFLAG_FPU) &&
                  !(ctx->hflags & MIPS_HFLAG_F64))) {
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         return 0;
     }
 
     if (unlikely(!(ctx->hflags & MIPS_HFLAG_MSA))) {
         if (ctx->insn_flags & ASE_MSA) {
-            generate_exception(ctx, EXCP_MSADIS);
+            generate_exception_end(ctx, EXCP_MSADIS);
             return 0;
         } else {
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             return 0;
         }
     }
@@ -18451,7 +18435,7 @@ static void gen_msa_branch(CPUMIPSState *env, DisasContext *ctx, uint32_t op1)
 
     if (ctx->insn_flags & ISA_MIPS32R6 && ctx->hflags & MIPS_HFLAG_BMASK) {
         MIPS_DEBUG("CTI in delay / forbidden slot");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         return;
     }
     switch (op1) {
@@ -18526,7 +18510,7 @@ static void gen_msa_i8(CPUMIPSState *env, DisasContext *ctx)
         {
             uint8_t df = (ctx->opcode >> 24) & 0x3;
             if (df == DF_DOUBLE) {
-                generate_exception(ctx, EXCP_RI);
+                generate_exception_end(ctx, EXCP_RI);
             } else {
                 TCGv_i32 tdf = tcg_const_i32(df);
                 gen_helper_msa_shf_df(cpu_env, tdf, twd, tws, ti8);
@@ -18536,7 +18520,7 @@ static void gen_msa_i8(CPUMIPSState *env, DisasContext *ctx)
         break;
     default:
         MIPS_INVAL("MSA instruction");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
 
@@ -18608,7 +18592,7 @@ static void gen_msa_i5(CPUMIPSState *env, DisasContext *ctx)
         break;
     default:
         MIPS_INVAL("MSA instruction");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
 
@@ -18644,7 +18628,7 @@ static void gen_msa_bit(CPUMIPSState *env, DisasContext *ctx)
         m = dfm & 0x7;
         df = DF_BYTE;
     } else {
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         return;
     }
 
@@ -18692,7 +18676,7 @@ static void gen_msa_bit(CPUMIPSState *env, DisasContext *ctx)
         break;
     default:
         MIPS_INVAL("MSA instruction");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
 
@@ -18887,7 +18871,8 @@ static void gen_msa_3r(CPUMIPSState *env, DisasContext *ctx)
     case OPC_HSUB_S_df:
     case OPC_HSUB_U_df:
         if (df == DF_BYTE) {
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
+            break;
         }
         switch (MASK_MSA_3R(ctx->opcode)) {
         case OPC_DOTP_S_df:
@@ -18924,7 +18909,7 @@ static void gen_msa_3r(CPUMIPSState *env, DisasContext *ctx)
         break;
     default:
         MIPS_INVAL("MSA instruction");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
     tcg_temp_free_i32(twd);
@@ -18956,7 +18941,7 @@ static void gen_msa_elm_3e(CPUMIPSState *env, DisasContext *ctx)
         break;
     default:
         MIPS_INVAL("MSA instruction");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
 
@@ -18993,7 +18978,7 @@ static void gen_msa_elm_df(CPUMIPSState *env, DisasContext *ctx, uint32_t df,
 #if !defined(TARGET_MIPS64)
         /* Double format valid only for MIPS64 */
         if (df == DF_DOUBLE) {
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
 #endif
@@ -19011,7 +18996,7 @@ static void gen_msa_elm_df(CPUMIPSState *env, DisasContext *ctx, uint32_t df,
         break;
     default:
         MIPS_INVAL("MSA instruction");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
     }
     tcg_temp_free_i32(twd);
     tcg_temp_free_i32(tws);
@@ -19041,7 +19026,7 @@ static void gen_msa_elm(CPUMIPSState *env, DisasContext *ctx)
         gen_msa_elm_3e(env, ctx);
         return;
     } else {
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         return;
     }
 
@@ -19196,7 +19181,7 @@ static void gen_msa_3rf(CPUMIPSState *env, DisasContext *ctx)
         break;
     default:
         MIPS_INVAL("MSA instruction");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
 
@@ -19224,7 +19209,7 @@ static void gen_msa_2r(CPUMIPSState *env, DisasContext *ctx)
 #if !defined(TARGET_MIPS64)
         /* Double format valid only for MIPS64 */
         if (df == DF_DOUBLE) {
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
 #endif
@@ -19241,7 +19226,7 @@ static void gen_msa_2r(CPUMIPSState *env, DisasContext *ctx)
         break;
     default:
         MIPS_INVAL("MSA instruction");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
 
@@ -19356,7 +19341,7 @@ static void gen_msa_vec_v(CPUMIPSState *env, DisasContext *ctx)
         break;
     default:
         MIPS_INVAL("MSA instruction");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
 
@@ -19385,7 +19370,7 @@ static void gen_msa_vec(CPUMIPSState *env, DisasContext *ctx)
         break;
     default:
         MIPS_INVAL("MSA instruction");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
 }
@@ -19483,7 +19468,7 @@ static void gen_msa(CPUMIPSState *env, DisasContext *ctx)
         break;
     default:
         MIPS_INVAL("MSA instruction");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
 
@@ -19500,7 +19485,6 @@ static void decode_opc(CPUMIPSState *env, DisasContext *ctx)
     if (ctx->pc & 0x3) {
         env->CP0_BadVAddr = ctx->pc;
         generate_exception_err(ctx, EXCP_AdEL, EXCP_INST_NOTAVAIL);
-        ctx->bstate = BS_STOP;
         return;
     }
 
@@ -19556,7 +19540,7 @@ static void decode_opc(CPUMIPSState *env, DisasContext *ctx)
                     /* OPC_NAL, OPC_BAL */
                     gen_compute_branch(ctx, op1, 4, 0, -1, imm << 2, 4);
                 } else {
-                    generate_exception(ctx, EXCP_RI);
+                    generate_exception_end(ctx, EXCP_RI);
                 }
             } else {
                 gen_compute_branch(ctx, op1, 4, rs, -1, imm << 2, 4);
@@ -19601,7 +19585,7 @@ static void decode_opc(CPUMIPSState *env, DisasContext *ctx)
 #endif
         default:            /* Invalid */
             MIPS_INVAL("regimm");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -19676,7 +19660,7 @@ static void decode_opc(CPUMIPSState *env, DisasContext *ctx)
                     break;
                 default:            /* Invalid */
                     MIPS_INVAL("mfmc0");
-                    generate_exception(ctx, EXCP_RI);
+                    generate_exception_end(ctx, EXCP_RI);
                     break;
                 }
                 tcg_temp_free(t0);
@@ -19693,7 +19677,7 @@ static void decode_opc(CPUMIPSState *env, DisasContext *ctx)
             break;
         default:
             MIPS_INVAL("cp0");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -19728,7 +19712,7 @@ static void decode_opc(CPUMIPSState *env, DisasContext *ctx)
     case OPC_BLEZC: /* OPC_BGEZC, OPC_BGEC, OPC_BLEZL */
         if (ctx->insn_flags & ISA_MIPS32R6) {
             if (rt == 0) {
-                generate_exception(ctx, EXCP_RI);
+                generate_exception_end(ctx, EXCP_RI);
                 break;
             }
             /* OPC_BLEZC, OPC_BGEZC, OPC_BGEC */
@@ -19741,7 +19725,7 @@ static void decode_opc(CPUMIPSState *env, DisasContext *ctx)
     case OPC_BGTZC: /* OPC_BLTZC, OPC_BLTC, OPC_BGTZL */
         if (ctx->insn_flags & ISA_MIPS32R6) {
             if (rt == 0) {
-                generate_exception(ctx, EXCP_RI);
+                generate_exception_end(ctx, EXCP_RI);
                 break;
             }
             /* OPC_BGTZC, OPC_BLTZC, OPC_BLTC */
@@ -19971,7 +19955,7 @@ static void decode_opc(CPUMIPSState *env, DisasContext *ctx)
             break;
         default:
             MIPS_INVAL("cp1");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             break;
         }
         break;
@@ -20053,7 +20037,7 @@ static void decode_opc(CPUMIPSState *env, DisasContext *ctx)
                 break;
             default:
                 MIPS_INVAL("cp3");
-                generate_exception (ctx, EXCP_RI);
+                generate_exception_end(ctx, EXCP_RI);
                 break;
             }
         } else {
@@ -20109,7 +20093,7 @@ static void decode_opc(CPUMIPSState *env, DisasContext *ctx)
             gen_compute_compact_branch(ctx, op, rs, rt, imm << 2);
         } else {
             MIPS_INVAL("major opcode");
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
         }
         break;
 #endif
@@ -20126,7 +20110,7 @@ static void decode_opc(CPUMIPSState *env, DisasContext *ctx)
             }
             MIPS_DEBUG("daui %s, %s, %04x", regnames[rt], regnames[rs], imm);
 #else
-            generate_exception(ctx, EXCP_RI);
+            generate_exception_end(ctx, EXCP_RI);
             MIPS_INVAL("major opcode");
 #endif
         } else {
@@ -20146,7 +20130,7 @@ static void decode_opc(CPUMIPSState *env, DisasContext *ctx)
         break;
     default:            /* Invalid */
         MIPS_INVAL("major opcode");
-        generate_exception(ctx, EXCP_RI);
+        generate_exception_end(ctx, EXCP_RI);
         break;
     }
 }
@@ -20212,7 +20196,7 @@ gen_intermediate_code_internal(MIPSCPU *cpu, TranslationBlock *tb,
                 if (bp->pc == ctx.pc) {
                     save_cpu_state(&ctx, 1);
                     ctx.bstate = BS_BRANCH;
-                    gen_helper_0e0i(raise_exception, EXCP_DEBUG);
+                    gen_helper_raise_exception_debug(cpu_env);
                     /* Include the breakpoint location or the tb won't
                      * be flushed when it must be.  */
                     ctx.pc += 4;
@@ -20249,8 +20233,7 @@ gen_intermediate_code_internal(MIPSCPU *cpu, TranslationBlock *tb,
             ctx.opcode = cpu_lduw_code(env, ctx.pc);
             insn_bytes = decode_mips16_opc(env, &ctx);
         } else {
-            generate_exception(&ctx, EXCP_RI);
-            ctx.bstate = BS_STOP;
+            generate_exception_end(&ctx, EXCP_RI);
             break;
         }
 
@@ -20302,7 +20285,7 @@ gen_intermediate_code_internal(MIPSCPU *cpu, TranslationBlock *tb,
     }
     if (cs->singlestep_enabled && ctx.bstate != BS_BRANCH) {
         save_cpu_state(&ctx, ctx.bstate != BS_EXCP);
-        gen_helper_0e0i(raise_exception, EXCP_DEBUG);
+        gen_helper_raise_exception_debug(cpu_env);
     } else {
         switch (ctx.bstate) {
         case BS_STOP:
