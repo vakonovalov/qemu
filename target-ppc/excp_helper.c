@@ -846,8 +846,8 @@ static void cpu_dump_rfi(target_ulong RA, target_ulong msr)
 /*****************************************************************************/
 /* Exceptions processing helpers */
 
-void helper_raise_exception_err(CPUPPCState *env, uint32_t exception,
-                                uint32_t error_code)
+void raise_exception_err(CPUPPCState *env, uint32_t exception,
+                         uint32_t error_code, uintptr_t pc)
 {
     CPUState *cs = CPU(ppc_env_get_cpu(env));
 
@@ -856,15 +856,32 @@ void helper_raise_exception_err(CPUPPCState *env, uint32_t exception,
 #endif
     cs->exception_index = exception;
     env->error_code = error_code;
-    cpu_loop_exit(cs);
+    cpu_loop_exit_restore(cs, pc);
+}
+
+void helper_raise_exception_err(CPUPPCState *env, uint32_t exception,
+                                uint32_t error_code)
+{
+    raise_exception_err(env, exception, error_code, GETPC());
+}
+
+void helper_raise_exception_end(CPUPPCState *env, uint32_t exception,
+                                uint32_t error_code)
+{
+    raise_exception_err(env, exception, error_code, 0);
 }
 
 void helper_raise_exception(CPUPPCState *env, uint32_t exception)
 {
-    helper_raise_exception_err(env, exception, 0);
+    raise_exception_err(env, exception, 0, GETPC());
 }
 
 #if !defined(CONFIG_USER_ONLY)
+static void raise_exception(CPUPPCState *env, uint32_t exception, uintptr_t pc)
+{
+    raise_exception_err(env, exception, 0, pc);
+}
+
 void helper_store_msr(CPUPPCState *env, target_ulong val)
 {
     CPUState *cs;
@@ -873,7 +890,8 @@ void helper_store_msr(CPUPPCState *env, target_ulong val)
     if (val != 0) {
         cs = CPU(ppc_env_get_cpu(env));
         cs->interrupt_request |= CPU_INTERRUPT_EXITTB;
-        helper_raise_exception(env, val);
+        /* nip is updated by generated code */
+        raise_exception(env, val, 0);
     }
 }
 
@@ -971,8 +989,9 @@ void helper_tw(CPUPPCState *env, target_ulong arg1, target_ulong arg2,
                   ((int32_t)arg1 == (int32_t)arg2 && (flags & 0x04)) ||
                   ((uint32_t)arg1 < (uint32_t)arg2 && (flags & 0x02)) ||
                   ((uint32_t)arg1 > (uint32_t)arg2 && (flags & 0x01))))) {
-        helper_raise_exception_err(env, POWERPC_EXCP_PROGRAM,
-                                   POWERPC_EXCP_TRAP);
+        /* nip is updated in TB */
+        raise_exception_err(env, POWERPC_EXCP_PROGRAM,
+                            POWERPC_EXCP_TRAP, 0);
     }
 }
 
@@ -985,8 +1004,9 @@ void helper_td(CPUPPCState *env, target_ulong arg1, target_ulong arg2,
                   ((int64_t)arg1 == (int64_t)arg2 && (flags & 0x04)) ||
                   ((uint64_t)arg1 < (uint64_t)arg2 && (flags & 0x02)) ||
                   ((uint64_t)arg1 > (uint64_t)arg2 && (flags & 0x01))))) {
-        helper_raise_exception_err(env, POWERPC_EXCP_PROGRAM,
-                                   POWERPC_EXCP_TRAP);
+        /* nip is updated in TB */
+        raise_exception_err(env, POWERPC_EXCP_PROGRAM,
+                            POWERPC_EXCP_TRAP, 0);
     }
 }
 #endif
