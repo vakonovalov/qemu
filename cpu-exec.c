@@ -369,6 +369,12 @@ int cpu_exec(CPUState *cpu)
     volatile bool have_tb_lock = false;
 
     if (cpu->halted) {
+#ifdef TARGET_I386
+        if (cpu->interrupt_request & CPU_INTERRUPT_POLL) {
+            apic_poll_irq(x86_cpu->apic_state);
+            cpu_reset_interrupt(cpu, CPU_INTERRUPT_POLL);
+        }
+#endif
         if (!cpu_has_work(cpu)) {
             return EXCP_HALTED;
         }
