@@ -1480,12 +1480,12 @@ DISAS_INSN(movep)
             }
         }
     } else {
-    	tcg_gen_movi_i32(reg, 0);
+        tcg_gen_movi_i32(reg, 0);
         for (; i > 0; i--) {
             dbuf = gen_load(s, OS_BYTE, abuf, 1);
             tcg_gen_or_i32(reg, reg, dbuf);
             if (i > 1) {
-            	tcg_gen_shli_i32(reg, reg, 8);
+                tcg_gen_shli_i32(reg, reg, 8);
                 tcg_gen_addi_i32(abuf, abuf, 2);
             }
         }
