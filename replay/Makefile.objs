@@ -1,5 +1,6 @@
-obj-y += replay.o
-obj-y += replay-internal.o
-obj-y += replay-events.o
-obj-y += replay-time.o
-obj-y += replay-input.o
+obj-$(CONFIG_SOFTMMU) += replay.o
+obj-$(CONFIG_SOFTMMU) += replay-internal.o
+obj-$(CONFIG_SOFTMMU) += replay-events.o
+obj-$(CONFIG_SOFTMMU) += replay-time.o
+obj-$(CONFIG_SOFTMMU) += replay-input.o
+obj-$(CONFIG_USER_ONLY) += replay-user.o
