@@ -29,6 +29,9 @@
 #include "qemu/rcu.h"
 #include "exec/tb-hash.h"
 #include "replay/replay.h"
+#ifdef TARGET_I386
+#include "include/hw/i386/apic.h"
+#endif
 
 /* -icount align implementation. */
 
