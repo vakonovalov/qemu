@@ -377,7 +377,7 @@ int cpu_exec(CPUState *cpu)
     current_cpu = cpu;
 
     if (cpu->halted) {
-#ifdef TARGET_I386
+#if defined(TARGET_I386) && !defined(CONFIG_USER_ONLY)
         if ((cpu->interrupt_request & CPU_INTERRUPT_POLL)
             && replay_interrupt()) {
             apic_poll_irq(x86_cpu->apic_state);
