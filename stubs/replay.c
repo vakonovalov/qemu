@@ -31,3 +31,7 @@ bool replay_events_enabled(void)
 {
     return false;
 }
+
+void qemu_system_shutdown_request(void)
+{
+}
