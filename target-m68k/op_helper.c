@@ -67,7 +67,9 @@ static void do_rte(CPUM68KState *env)
         fmt = cpu_ldl_kernel(env, sp);
     }
     env->pc = cpu_ldl_kernel(env, sp + offset);
-    sp |= (fmt >> 28) & 3;
+    if (!m68k_feature(env, M68K_FEATURE_M68000)) {
+        sp |= (fmt >> 28) & 3;
+    }
     env->sr = fmt & 0xffff;
     m68k_switch_sp(env);
     env->aregs[7] = sp + 4 + offset;
@@ -130,7 +132,9 @@ static void do_interrupt_all(CPUM68KState *env, int is_hw)
         m68k_switch_sp(env);
 
         /* ??? This could cause MMU faults.  */
-        sp &= ~3;
+        if (!m68k_feature(env, M68K_FEATURE_M68000)) {
+            sp &= ~3;
+        }
         sp -= 4;
         cpu_stl_kernel(env, sp, retaddr);
         if (m68k_feature(env, M68K_FEATURE_M68000)) {
