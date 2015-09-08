@@ -6,7 +6,6 @@
 #include "sy6522.h"
 
 typedef struct keyboard_state {
-    qemu_irq irq;
     uint8_t cmd;
     uint8_t model_number_flag;
     QEMUTimer *timer;
@@ -36,7 +35,7 @@ static QemuInputHandler keyboard_handler = {
 static void put_value_vSR(void *opaque, int value)
 {
     keyboard_state *s = (keyboard_state *)opaque;
-
+    
     s->cmd = 0;
     via_set_reg(s->via, vSR, value);
     via_set_reg(s->via, vIFR, via_get_reg(s->via, vIFR) | 0x04);
@@ -70,40 +69,32 @@ static void keyboard_reset(void *opaque) {
     kbd_state->model_number_flag = 0;
 }
 
-static void cmd_handler(void *opaque, int irq, int level)
-{
-    keyboard_state *s = (keyboard_state *)opaque;
-    if (irq == 1) {
-        s->cmd = via_get_reg(s->via, vSR);
-        switch(s->cmd) {
-            case 0x10:
-                if (s->model_number_flag) {
-                    timer_mod_ns(s->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + get_ticks_per_sec() / 4);
-                }
-                break;
-            case 0x14:
-                hw_error("Command Instant is unavailable for this keyboard. Somebody need to fix that.\n");
-                break;
-            case 0x16:
-                keyboard_reset(s);
-                s->model_number_flag = 1;
-                put_value_vSR(s, 0x0f);
-                break;
-            case 0x36:
-                if (s->model_number_flag) {
-                    put_value_vSR(s, 0x7d);
-                }
-                break;
-        }
-    }
-}
-
 static void timer_callback(void *opaque) {
     put_value_vSR(opaque, 0x7b);
 }
 
 void keyboard_handle_cmd(keyboard_state *s) {
-    qemu_irq_raise(s->irq);
+    s->cmd = via_get_reg(s->via, vSR);
+    switch(s->cmd) {
+        case 0x10:
+            if (s->model_number_flag) {
+                timer_mod_ns(s->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + get_ticks_per_sec() / 4);
+            }
+            break;
+        case 0x14:
+            hw_error("Command Instant is unavailable for this keyboard. Somebody need to fix that.\n");
+            break;
+        case 0x16:
+            keyboard_reset(s);
+            s->model_number_flag = 1;
+            put_value_vSR(s, 0x0f);
+            break;
+        case 0x36:
+            if (s->model_number_flag) {
+                put_value_vSR(s, 0x7d);
+            }
+            break;
+    }
 }
 
 keyboard_state *keyboard_init(via_state *via) {
@@ -112,7 +103,6 @@ keyboard_state *keyboard_init(via_state *via) {
     s->via = via;
     qemu_input_handler_register((DeviceState *)s,
                                 &keyboard_handler);
-    s->irq = qemu_allocate_irq(cmd_handler, s, 1);
     s->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, timer_callback, s);
     qemu_register_reset(keyboard_reset, s);
     keyboard_reset(s);
