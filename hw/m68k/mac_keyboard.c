@@ -6,6 +6,7 @@
 #include "sy6522.h"
 
 typedef struct keyboard_state {
+    qemu_irq irq;
     uint8_t cmd;
     uint8_t model_number_flag;
     QEMUTimer *timer;
@@ -35,10 +36,10 @@ static QemuInputHandler keyboard_handler = {
 static void put_value_vSR(void *opaque, int value)
 {
     keyboard_state *s = (keyboard_state *)opaque;
-    
+
     s->cmd = 0;
     via_set_reg(s->via, vSR, value);
-    via_set_reg(s->via, vIFR, via_get_reg(s->via, vIFR) | 0x04);
+    qemu_irq_raise(s->irq);
 }
 
 
@@ -63,17 +64,20 @@ static void keyboard_event(DeviceState *dev, QemuConsole *src,
     }
 }
 
-static void keyboard_reset(void *opaque) {
+static void keyboard_reset(void *opaque)
+{
     keyboard_state *kbd_state = (keyboard_state *)opaque;
     kbd_state->cmd = 0;
     kbd_state->model_number_flag = 0;
 }
 
-static void timer_callback(void *opaque) {
+static void timer_callback(void *opaque)
+{
     put_value_vSR(opaque, 0x7b);
 }
 
-void keyboard_handle_cmd(keyboard_state *s) {
+void keyboard_handle_cmd(keyboard_state *s)
+{
     s->cmd = via_get_reg(s->via, vSR);
     switch(s->cmd) {
         case 0x10:
@@ -97,13 +101,15 @@ void keyboard_handle_cmd(keyboard_state *s) {
     }
 }
 
-keyboard_state *keyboard_init(via_state *via) {
+keyboard_state *keyboard_init(via_state *via, qemu_irq irq)
+{
     keyboard_state *s = (keyboard_state *)g_malloc0(sizeof(keyboard_state));
     
     s->via = via;
     qemu_input_handler_register((DeviceState *)s,
                                 &keyboard_handler);
     s->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, timer_callback, s);
+    s->irq = irq;
     qemu_register_reset(keyboard_reset, s);
     keyboard_reset(s);
 
