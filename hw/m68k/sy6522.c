@@ -25,7 +25,7 @@
 #define RTCRAMBUF2_MASK 0x0C
 #define HOST_TO_MAC_RTC (66 * 365 + 17) * 24 * 3600
 
-typedef struct {
+typedef struct rtc_state {
     qemu_irq irq;
     uint8_t count;
     uint8_t rw_flag;
@@ -48,12 +48,8 @@ typedef struct via_state {
     /* registers */
     uint8_t regs[VIA_REGS];
     rtc_state rtc;
+    keyboard_state *keyboard;
 } via_state;
-
-uint8_t via_get_reg(via_state *via, uint8_t offset)
-{
-    return via->regs[offset];
-}
 
 static void via_set_regAbuf(via_state *s, uint8_t val)
 {
@@ -204,6 +200,21 @@ static void via_set_reg_vIER(via_state *s, uint8_t val)
     qemu_log("vIER = %x\n", s->regs[vIER]);
 }
 
+//Both functions zeroes vSR interrupt flag
+static void via_set_reg_vSR(via_state *s, uint8_t val)
+{
+    s->regs[vSR] = val;
+    via_set_reg_vIFR(s, s->regs[vIFR] & 0xfb);
+    qemu_log("Write vSR = %x , vIFR = %x\n", s->regs[vSR], s->regs[vIFR]);
+}
+
+static uint8_t via_read_reg_vSR(via_state *s)
+{
+    via_set_reg_vIFR(s, s->regs[vIFR] & 0xfb);
+    qemu_log("Read vSR = %x , vIFR = %x\n",s->regs[vSR],s->regs[vIFR]);
+    return s->regs[vSR];
+}
+
 static void via_writeb(void *opaque, hwaddr offset,
                               uint32_t value)
 {
@@ -213,22 +224,9 @@ static void via_writeb(void *opaque, hwaddr offset,
         hw_error("Bad VIA write offset 0x%x", (int)offset);
     }
     qemu_log("via_write offset=0x%x value=0x%x\n", (int)offset, value);
-    switch (offset) {
-    case vBufA:
-        via_set_regAbuf(s, value);
-        break;
-    case vBufB:
-        via_set_regBbuf(s, value);
-        break;
-    case vDirB:
-        via_set_regBdir(s, value);
-        break;
-    case vIFR:
-        via_set_reg_vIFR(s, value);
-        break;
-    case vIER:
-        via_set_reg_vIER(s, value);
-        break;
+    via_set_reg(s, offset, value);
+    if (offset == vSR) {
+        keyboard_handle_cmd(s->keyboard);
     }
 }
 
@@ -240,9 +238,41 @@ static uint32_t via_readb(void *opaque, hwaddr offset)
     if (offset >= VIA_REGS) {
         hw_error("Bad VIA read offset 0x%x", (int)offset);
     }
-    ret = s->regs[offset];
+    ret = via_get_reg(s, offset);
     qemu_log("via_read offset=0x%x val=0x%x\n", (int)offset, ret);
     return ret;
+}
+
+uint8_t via_get_reg(via_state *via, uint8_t offset)
+{
+    if (offset == vSR) 
+        return via_read_reg_vSR(via);
+
+    return via->regs[offset];
+}
+
+void via_set_reg(via_state *via, uint8_t offset, uint8_t value) 
+{
+    switch (offset) {
+    case vBufA:
+        via_set_regAbuf(via, value);
+        break;
+    case vBufB:
+        via_set_regBbuf(via, value);
+        break;
+    case vDirB:
+        via_set_regBdir(via, value);
+        break;
+    case vSR:
+        via_set_reg_vSR(via, value);
+        break;
+    case vIFR:
+        via_set_reg_vIFR(via, value);
+        break;
+    case vIER:
+        via_set_reg_vIER(via, value);
+        break;
+    }
 }
 
 static const MemoryRegionOps via_ops = {
@@ -298,12 +328,10 @@ static void rtc_init(void *opaque, qemu_irq irq)
     rtc_reset(rtc);
 }
 
-static void set_rtc_irq(void *opaque, int irq, int level)
+static void set_via_irq(void *opaque, int irq, int level)
 {
     via_state *s = (via_state *)opaque;
-    if (irq == 0) {
-        via_set_reg_vIFR(s, s->regs[vIFR] | 0x01);
-    }
+    via_set_reg_vIFR(s, s->regs[vIFR] | (0x01 << irq));
 }
 
 static void sy6522_reset(void *opaque)
@@ -324,7 +352,7 @@ via_state *sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
     qemu_irq *pic;
 
     s = (via_state *)g_malloc0(sizeof(via_state));
-    pic = qemu_allocate_irqs(set_rtc_irq, s, 1);
+    pic = qemu_allocate_irqs(set_via_irq, s, 8);
 
     s->base = base;
     s->cpu = cpu;
@@ -338,6 +366,7 @@ via_state *sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
     memory_region_init_alias(&s->ram, NULL, "RAM overlay", ram, 0x0, 0x20000);
 
     rtc_init(&s->rtc, pic[0]);
+    s->keyboard = keyboard_init(s, pic[2]);
 
     qemu_register_reset(sy6522_reset, s);
     sy6522_reset(s);
