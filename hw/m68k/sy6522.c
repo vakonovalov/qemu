@@ -331,12 +331,7 @@ static void rtc_init(void *opaque, qemu_irq irq)
 static void set_via_irq(void *opaque, int irq, int level)
 {
     via_state *s = (via_state *)opaque;
-    if (irq == 0) {
-        via_set_reg_vIFR(s, s->regs[vIFR] | 0x01);
-    }
-    if (irq == 1) {
-        via_set_reg_vIFR(s, s->regs[vIFR] | 0x04);
-    }
+    via_set_reg_vIFR(s, s->regs[vIFR] | (0x01 << irq));
 }
 
 static void sy6522_reset(void *opaque)
@@ -357,7 +352,7 @@ via_state *sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
     qemu_irq *pic;
 
     s = (via_state *)g_malloc0(sizeof(via_state));
-    pic = qemu_allocate_irqs(set_via_irq, s, 2);
+    pic = qemu_allocate_irqs(set_via_irq, s, 8);
 
     s->base = base;
     s->cpu = cpu;
@@ -371,7 +366,7 @@ via_state *sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
     memory_region_init_alias(&s->ram, NULL, "RAM overlay", ram, 0x0, 0x20000);
 
     rtc_init(&s->rtc, pic[0]);
-    s->keyboard = keyboard_init(s, pic[1]);
+    s->keyboard = keyboard_init(s, pic[2]);
 
     qemu_register_reset(sy6522_reset, s);
     sy6522_reset(s);
