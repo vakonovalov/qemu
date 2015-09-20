@@ -12,9 +12,6 @@
 #define LOWBIT_MASK (1 << LOWBIT)
 #define CMDW_MASK 0x06
 
-
-typedef struct via_state via_state;
-
 enum
 {
     CA0       = 0,
@@ -85,7 +82,7 @@ static void cmd_handw(iwm_state *s)
         reg[cmd] |= (s->lines[CA2] >> LOWBIT) & LOWBIT_MASK;
         qemu_log("iwm: write %s register\n", iwm_regs[cmd]);
     } else {
-        qemu_log("iwm error: unknown command 0x%x\n", cmd);
+        qemu_log("iwm: write error: unknown command 0x%x\n", cmd);
     }
 }
 
@@ -99,7 +96,7 @@ static void cmd_handr(iwm_state *s)
     cmd = (cmd << 1) | (s->lines[CA0] & LOWBIT_MASK);
     cmd = (cmd << 1) | ((sel & REGA_SEL_MASK) >> SELBIT);
     if ((cmd == 6) || (cmd == 10) || (cmd == 11) || (cmd == 13) || (cmd == 14)) {
-        qemu_log("iwm error: unknown command 0x%x\n", cmd);
+        qemu_log("iwm read error: unknown command 0x%x\n", cmd);
     } else {
         s->lines[Q7] &= ~HIGHBIT_MASK;
         s->lines[Q7] |= (reg[cmd] << HIGHBIT) & HIGHBIT_MASK;
@@ -121,7 +118,6 @@ static void iwm_writeb(void *opaque, hwaddr offset,
     if (offset > 0xF) {
         hw_error("Bad IWM write offset 0x%x", (int)offset);
     }
-    //qemu_log("iwm_write offset=0x%x value=0x%x\n", (int)offset, value);
     s->lines[offset >> 1] = offset % 2;
     qemu_log("iwm: line %s set to %d\n", iwm_lines[offset >> 1], (int)offset % 2);
     if ((offset % 2) && (offset >> 1 == LSTRB)) {
@@ -136,7 +132,6 @@ static uint32_t iwm_readb(void *opaque, hwaddr offset)
     if (offset >= IWM_REGS) {
         hw_error("Bad iwm read offset 0x%x", (int)offset);
     }
-    //qemu_log("iwm_read offset=0x%x\n", (int)offset);
     s->lines[offset >> 1] = offset % 2;
     qemu_log("iwm: line %s set to %d\n", iwm_lines[offset >> 1], (int)offset % 2);
     if (s->lines[Q6] && (offset >> 1 == Q7) && !s->lines[LSTRB]) {

@@ -1,9 +1,9 @@
 #include "hw/hw.h"
 #include "exec/address-spaces.h"
-#include "mac128k.h"
 #include "hw/irq.h"
 #include "ui/input.h"
 #include "sy6522.h"
+#include "mac_keyboard.h"
 
 typedef struct keyboard_state {
     qemu_irq irq;

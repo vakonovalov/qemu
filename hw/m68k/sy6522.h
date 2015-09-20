@@ -1,6 +1,12 @@
 #ifndef SY6522
 #define SY6522
 
+typedef struct via_state via_state;
+
+#define REGB_RTCDATA_MASK (1 << 0)
+#define REGB_RTCCLK_MASK (1 << 1)
+#define REGB_RTCENB_MASK (1 << 2)
+#define REGB_RTCRWBIT_MASK (1 << 7)
 #define SELBIT 5
 #define REGA_SEL_MASK (1 << SELBIT)
 
@@ -26,7 +32,5 @@ enum
 
 uint8_t via_get_reg(via_state *via, uint8_t offset);
 void via_set_reg(via_state *via, uint8_t offset, uint8_t value);
-
-via_state *sy6522_init(MemoryRegion *rom, MemoryRegion *ram, uint32_t base, M68kCPU *cpu);
 
 #endif 

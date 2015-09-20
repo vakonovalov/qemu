@@ -6,7 +6,6 @@
 
 #include "hw/hw.h"
 #include "mac128k.h"
-#include "sy6522.h"
 #include "hw/boards.h"
 #include "hw/loader.h"
 #include "elf.h"
