@@ -52,6 +52,7 @@ static void keyboard_event(DeviceState *dev, QemuConsole *src,
     count = qemu_input_key_value_to_scancode(evt->key->key,
                                              evt->key->down,
                                              scancodes);
+    timer_del(s->timer);
     if (s->cmd == 0x10 || s->cmd == 0x14) {
         if (count == 3) {
             put_value_vSR(s, 0x7b);
