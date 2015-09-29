@@ -3,9 +3,6 @@
 #include "sy6522.h"
 #include "mac_rtc.h"
 
-#define RTCSEC_MASK 0x0C
-#define RTCRAMBUF1_MASK 0x3C
-#define RTCRAMBUF2_MASK 0x0C
 #define HOST_TO_MAC_RTC (66 * 365 + 17) * 24 * 3600
 
 #define RTC_BUF_MASK 0x03
@@ -16,9 +13,6 @@ typedef struct rtc_state {
     uint8_t rw_flag;
     uint8_t cmd;
     uint8_t param;
-    // uint8_t sec_reg[4];
-    // uint8_t test_reg;
-    // uint8_t wr_pr_reg;
     uint8_t buf_RAM[32];
     QEMUTimer *timer;
 } rtc_state;
@@ -111,16 +105,6 @@ static void rtc_interrupt(void * opaque)
 {
     rtc_state *rtc = opaque;
     timer_mod_ns(rtc->timer, qemu_clock_get_ns(rtc_clock) + get_ticks_per_sec());
-    /*if (rtc->sec_reg[0] == 0xFF) {
-        if (rtc->sec_reg[1] == 0xFF) {
-            if (rtc->sec_reg[2] == 0xFF) {
-                rtc->sec_reg[3]++;
-            }
-            rtc->sec_reg[2]++;
-        }
-        rtc->sec_reg[1]++;
-    }
-    rtc->sec_reg[0]++;*/
 
     if (rtc->buf_RAM[0] == 0xFF) {
         if (rtc->buf_RAM[1] == 0xFF) {
