@@ -19,6 +19,11 @@
 
 #define REGA_OVERLAY_MASK (1 << 4)
 
+typedef struct vbi_state {
+    qemu_irq irq;
+    QEMUTimer *timer;
+} vbi_state;
+
 typedef struct via_state {
     M68kCPU *cpu;
     MemoryRegion iomem;
@@ -29,6 +34,7 @@ typedef struct via_state {
     /* registers */
     uint8_t regs[VIA_REGS];
     rtc_state *rtc;
+    vbi_state *vbi;
     keyboard_state *keyboard;
 } via_state;
 
@@ -98,6 +104,7 @@ static void via_set_reg_vBufB(via_state *s, uint8_t val)
 
 static void via_set_reg_vIFR(via_state *s, uint8_t val)
 {
+    qemu_log("1via: vIFR set to 0x%x\n", s->regs[vIFR]);
     if (val & 0x80) {
         s->regs[vIFR] |= val;
     } else {
@@ -229,6 +236,24 @@ static void sy6522_reset(void *opaque)
     via_set_reg_vIER(s, 0);
 }
 
+static void vbi_interrupt(void * opaque)
+{
+    vbi_state *vbi = opaque;
+    
+    timer_mod_ns(vbi->timer, qemu_clock_get_ns(rtc_clock) + get_ticks_per_sec() / 60.0);
+    qemu_irq_raise(vbi->irq);
+}
+
+static vbi_state *vbi_init(qemu_irq irq)
+{
+    vbi_state *s = (vbi_state *)g_malloc0(sizeof(vbi_state));
+    
+    s->irq = irq;
+    s->timer = timer_new_ns(rtc_clock, vbi_interrupt, s);
+    timer_mod_ns(vbi->timer, qemu_clock_get_ns(rtc_clock) + get_ticks_per_sec() / 60.0);
+    return s;
+}
+
 via_state *sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
                  uint32_t base, M68kCPU *cpu)
 {
@@ -250,6 +275,7 @@ via_state *sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
     memory_region_init_alias(&s->ram, NULL, "RAM overlay", ram, 0x0, 0x20000);
 
     s->rtc = rtc_init(pic[0]);
+    s->vbi = vbi_init(pic[1]);
     s->keyboard = keyboard_init(s, pic[2]);
 
     qemu_register_reset(sy6522_reset, s);
