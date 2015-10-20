@@ -104,7 +104,6 @@ static void via_set_reg_vBufB(via_state *s, uint8_t val)
 
 static void via_set_reg_vIFR(via_state *s, uint8_t val)
 {
-    qemu_log("1via: vIFR set to 0x%x\n", s->regs[vIFR]);
     if (val & 0x80) {
         s->regs[vIFR] |= val;
     } else {
@@ -250,7 +249,7 @@ static vbi_state *vbi_init(qemu_irq irq)
     
     s->irq = irq;
     s->timer = timer_new_ns(rtc_clock, vbi_interrupt, s);
-    timer_mod_ns(vbi->timer, qemu_clock_get_ns(rtc_clock) + get_ticks_per_sec() / 60.0);
+    timer_mod_ns(s->timer, qemu_clock_get_ns(rtc_clock) + get_ticks_per_sec() / 60.0);
     return s;
 }
 
