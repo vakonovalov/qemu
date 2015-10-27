@@ -239,7 +239,7 @@ static void vbi_interrupt(void * opaque)
 {
     vbi_state *vbi = opaque;
     
-    timer_mod_ns(vbi->timer, qemu_clock_get_ns(rtc_clock) + get_ticks_per_sec() / 60.0);
+    timer_mod_ns(vbi->timer, qemu_clock_get_ns(rtc_clock) + 16625800);
     qemu_irq_raise(vbi->irq);
 }
 
@@ -249,7 +249,7 @@ static vbi_state *vbi_init(qemu_irq irq)
     
     s->irq = irq;
     s->timer = timer_new_ns(rtc_clock, vbi_interrupt, s);
-    timer_mod_ns(s->timer, qemu_clock_get_ns(rtc_clock) + get_ticks_per_sec() / 60.0);
+    timer_mod_ns(s->timer, qemu_clock_get_ns(rtc_clock) + 16625800);
     return s;
 }
 
