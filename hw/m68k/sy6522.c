@@ -137,7 +137,6 @@ static void via_set_reg_vSR(via_state *s, uint8_t val)
 {
     s->regs[vSR] = val;
     qemu_log("via: vSR set to 0x%x\n", s->regs[vSR]);
-    via_set_reg_vIFR(s, 0x04);
 }
 
 static void via_writeb(void *opaque, hwaddr offset,
@@ -151,7 +150,7 @@ static void via_writeb(void *opaque, hwaddr offset,
     qemu_log("via: write in %s 0x%x\n", via_regs[offset], value);
     via_set_reg(s, offset, value);
     /* bit 4 of ACR is SR input/output control */
-    if (offset == vSR && !(via_get_reg(s, vACR) & 0x10)) {
+    if (offset == vSR && (via_get_reg(s, vACR) & 0x10)) {
         keyboard_handle_cmd(s->keyboard);
     }
 }
@@ -199,6 +198,11 @@ void via_set_reg(via_state *via, uint8_t offset, uint8_t value)
         break;
     case vIER:
         via_set_reg_vIER(via, value);
+        break;
+    default:
+        if (offset < VIA_REGS) {
+            via->regs[offset] = value;
+        }
         break;
     }
 }
