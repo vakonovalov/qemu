@@ -24,6 +24,8 @@ static const unsigned char macintosh128k_raw_keycode[128] = {
    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
 };
 
+static const uint8_t NullKeycode = 0x7b;
+
 static void keyboard_event(DeviceState *dev, QemuConsole *src, InputEvent *evt);
 
 static QemuInputHandler keyboard_handler = {
@@ -33,10 +35,10 @@ static QemuInputHandler keyboard_handler = {
 };
 
 
-static void put_value_vSR(void *opaque, int value)
+static void put_value_vSR(void *opaque, uint8_t value)
 {
     keyboard_state *s = (keyboard_state *)opaque;
-
+    qemu_log("Sending byte from keyboard to SR %x\n", value);
     s->cmd = 0;
     via_set_reg(s->via, vSR, value);
     qemu_irq_raise(s->irq);
@@ -53,8 +55,9 @@ static void keyboard_event(DeviceState *dev, QemuConsole *src,
                                              evt->key->down,
                                              scancodes);
     if (s->cmd == 0x10 || s->cmd == 0x14) {
+        timer_del(s->timer);
         if (count == 3) {
-            put_value_vSR(s, 0x7b);
+            put_value_vSR(s, NullKeycode);
         } else {
             uint8_t keycode_mac;
             keycode_mac = macintosh128k_raw_keycode[scancodes[count - 1] & 0x7f];
@@ -73,19 +76,22 @@ static void keyboard_reset(void *opaque)
 
 static void timer_callback(void *opaque)
 {
-    put_value_vSR(opaque, 0x7b);
+    put_value_vSR(opaque, NullKeycode);
 }
 
 void keyboard_handle_cmd(keyboard_state *s)
 {
     s->cmd = via_get_reg(s->via, vSR);
-    switch(s->cmd) {
+    qemu_log("Keyboard receives command %x\n", s->cmd);
+    switch (s->cmd) {
         case 0x10:
+            /* Inquiry */
             if (s->model_number_flag) {
                 timer_mod_ns(s->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + get_ticks_per_sec() / 4);
             }
             break;
         case 0x14:
+            /* Instant */
             hw_error("Command Instant is unavailable for this keyboard. Somebody need to fix that.\n");
             break;
         case 0x16:

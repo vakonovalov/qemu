@@ -150,7 +150,8 @@ static void via_writeb(void *opaque, hwaddr offset,
     }
     qemu_log("via: write in %s 0x%x\n", via_regs[offset], value);
     via_set_reg(s, offset, value);
-    if (offset == vSR) {
+    /* bit 4 of ACR is SR input/output control */
+    if (offset == vSR && !(via_get_reg(s, vACR) & 0x10)) {
         keyboard_handle_cmd(s->keyboard);
     }
 }
