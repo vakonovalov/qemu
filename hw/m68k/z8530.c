@@ -5,6 +5,9 @@
 #include "ui/input.h"
 #include "exec/address-spaces.h"
 #include "mac128k.h"
+//#include "sy6522.h"
+#include "mac_mouse.h"
+#include "z8530.h"
 
 typedef enum {
     chn_a, chn_b,
@@ -29,6 +32,8 @@ typedef struct ChannelState {
 typedef struct Z8530State {
     struct ChannelState chn[2];
     MemoryRegion iomem;
+    M68kCPU *cpu;
+//    qemu_irq mouse_int;
 } Z8530State;
 
 #define SERIAL_CTRL 0
@@ -295,6 +300,34 @@ static uint64_t z8530_mem_read(void *opaque, hwaddr addr,
     return 0;
 }
 
+uint8_t z8530_get_reg(Z8530State *s, uint8_t chn_id, uint8_t number) 
+{
+    return s->chn[chn_id].rregs[number];
+}
+
+void z8530_set_reg(Z8530State *s, uint8_t chn_id, uint8_t number, uint8_t value) 
+{
+    s->chn[chn_id].rregs[number] = value;
+}
+
+void mouse_interrupt(void * opaque, uint8_t chn_id)
+{
+    Z8530State *s = opaque;
+
+    if (s->chn[chn_id].wregs[W_EXTINT] & EXTINT_DCD) {
+        if (chn_id == 0) {
+            s->chn[0].rregs[R_IVEC] = 0x0a;
+            s->chn[1].rregs[R_IVEC] = 0x0a;
+        } else {
+            s->chn[0].rregs[R_IVEC] = 0x02;
+            s->chn[1].rregs[R_IVEC] = 0x02;            
+        }
+        m68k_set_irq_level(s->cpu, 1, 0x68 >> 2);
+    } else {
+        m68k_set_irq_level(s->cpu, 0, 0x68 >> 2);
+    }
+}
+
 static void z8530_reset_chn(ChannelState *s)
 {
     int i;
@@ -337,13 +370,14 @@ static const MemoryRegionOps z8530_mem_ops = {
     .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
-void *z8530_init(hwaddr base)//, qemu_irq irqA, qemu_irq irqB)
+void *z8530_init(hwaddr base, via_state *via, M68kCPU *cpu)//, qemu_irq irqA, qemu_irq irqB)
 {
     Z8530State *s;
-
-    s = (Z8530State *)g_malloc0(sizeof(Z8530State));
     unsigned int i;
 
+    s = (Z8530State *)g_malloc0(sizeof(Z8530State));
+
+    s->cpu = cpu;
 //    s->chn[0].disabled = s->disabled;
 //    s->chn[1].disabled = s->disabled;
     for (i = 0; i < 2; i++) {
@@ -352,6 +386,9 @@ void *z8530_init(hwaddr base)//, qemu_irq irqA, qemu_irq irqB)
     }
     s->chn[0].otherchn = &s->chn[1];
     s->chn[1].otherchn = &s->chn[0];
+
+//    s->mouse_int = qemu_allocate_irq(mouse_interrupt, s, 0); 
+    mouse_init(s, via);
 
     memory_region_init_io(&s->iomem, NULL, &z8530_mem_ops, s, "z8530", 0x400000);
     memory_region_add_subregion(get_system_memory(), base, &s->iomem);

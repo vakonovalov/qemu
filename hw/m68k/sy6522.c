@@ -16,7 +16,6 @@
 #include "sy6522.h"
 #include "mac_rtc.h"
 #include "mac_keyboard.h"
-#include "mac_mouse.h"
 
 #define REGA_OVERLAY_MASK (1 << 4)
 
@@ -282,7 +281,6 @@ via_state *sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
     s->rtc = rtc_init(pic[0]);
     s->vbi = vbi_init(pic[1]);
     s->keyboard = keyboard_init(s, pic[2]);
-    mouse_init(s, NULL);
 
     qemu_register_reset(sy6522_reset, s);
     sy6522_reset(s);

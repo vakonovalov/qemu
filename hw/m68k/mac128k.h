@@ -10,6 +10,6 @@ via_state *sy6522_init(MemoryRegion *rom, MemoryRegion *ram, uint32_t base, M68k
 /* iwm.c */
 void iwm_init(MemoryRegion *sysmem, uint32_t base, M68kCPU *cpu, via_state *via);
 /* z8530.c */
-void *z8530_init(hwaddr base);
+void *z8530_init(hwaddr base, via_state *via, M68kCPU *cpu);
 
 #endif
