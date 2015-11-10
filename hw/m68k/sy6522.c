@@ -20,6 +20,11 @@
 
 #define REGA_OVERLAY_MASK (1 << 4)
 
+typedef struct vbi_state {
+    qemu_irq irq;
+    QEMUTimer *timer;
+} vbi_state;
+
 typedef struct via_state {
     M68kCPU *cpu;
     MemoryRegion iomem;
@@ -30,6 +35,7 @@ typedef struct via_state {
     /* registers */
     uint8_t regs[VIA_REGS];
     rtc_state *rtc;
+    vbi_state *vbi;
     keyboard_state *keyboard;
 } via_state;
 
@@ -132,7 +138,6 @@ static void via_set_reg_vSR(via_state *s, uint8_t val)
 {
     s->regs[vSR] = val;
     qemu_log("via: vSR set to 0x%x\n", s->regs[vSR]);
-    via_set_reg_vIFR(s, 0x04);
 }
 
 static void via_writeb(void *opaque, hwaddr offset,
@@ -145,7 +150,8 @@ static void via_writeb(void *opaque, hwaddr offset,
     }
     qemu_log("via: write in %s 0x%x\n", via_regs[offset], value);
     via_set_reg(s, offset, value);
-    if (offset == vSR) {
+    /* bit 4 of ACR is SR input/output control */
+    if (offset == vSR && (via_get_reg(s, vACR) & 0x10)) {
         keyboard_handle_cmd(s->keyboard);
     }
 }
@@ -194,6 +200,11 @@ void via_set_reg(via_state *via, uint8_t offset, uint8_t value)
     case vIER:
         via_set_reg_vIER(via, value);
         break;
+    default:
+        if (offset < VIA_REGS) {
+            via->regs[offset] = value;
+        }
+        break;
     }
 }
 
@@ -230,6 +241,24 @@ static void sy6522_reset(void *opaque)
     via_set_reg_vIER(s, 0);
 }
 
+static void vbi_interrupt(void * opaque)
+{
+    vbi_state *vbi = opaque;
+    
+    timer_mod_ns(vbi->timer, qemu_clock_get_ns(rtc_clock) + 16625800);
+    qemu_irq_raise(vbi->irq);
+}
+
+static vbi_state *vbi_init(qemu_irq irq)
+{
+    vbi_state *s = (vbi_state *)g_malloc0(sizeof(vbi_state));
+    
+    s->irq = irq;
+    s->timer = timer_new_ns(rtc_clock, vbi_interrupt, s);
+    timer_mod_ns(s->timer, qemu_clock_get_ns(rtc_clock) + 16625800);
+    return s;
+}
+
 via_state *sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
                  uint32_t base, M68kCPU *cpu)
 {
@@ -251,6 +280,7 @@ via_state *sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
     memory_region_init_alias(&s->ram, NULL, "RAM overlay", ram, 0x0, 0x20000);
 
     s->rtc = rtc_init(pic[0]);
+    s->vbi = vbi_init(pic[1]);
     s->keyboard = keyboard_init(s, pic[2]);
     mouse_init(s, NULL);
 
