@@ -122,13 +122,25 @@ static void mac128k_init(MachineState *machine)
         memory_region_add_subregion(address_space_mem, ramOffset, alias);
     }
     /* RAM mirroring for overlay (address wrap) */
-    for (ramOffset = ram_size ; ramOffset <= ROM_LOAD_ADDR - ram_size
+    for (ramOffset = ram_size ; ramOffset <= 0x800000 - ram_size
          ; ramOffset += ram_size)
     {
         /* hack: should be enabled only when overlay is on */
         MemoryRegion *alias = g_new(MemoryRegion, 1);
         memory_region_init_alias(alias, NULL, "RAM mirror", ram, 0x0, ram_size);
         memory_region_add_subregion(address_space_mem, 0x600000 + ramOffset, alias);
+    }
+
+    /* HACK: RAM mirroring for unused address bit 31 
+       TODO: bits 25-30 are unused too
+       TODO: ROM and RAM should switch with overlay
+     */
+    for (ramOffset = 0 ; ramOffset <= ROM_LOAD_ADDR - ram_size
+         ; ramOffset += ram_size)
+    {
+        MemoryRegion *alias = g_new(MemoryRegion, 1);
+        memory_region_init_alias(alias, NULL, "RAM mirror", ram, 0x0, ram_size);
+        memory_region_add_subregion(address_space_mem, 0x80000000UL + ramOffset, alias);
     }
 
     /* ROM */
