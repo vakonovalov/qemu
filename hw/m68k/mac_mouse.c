@@ -35,6 +35,7 @@ static void mouse_event(DeviceState *dev, QemuConsole *src,
     switch (evt->kind) {
     case INPUT_EVENT_KIND_REL:
         if (evt->rel->axis == INPUT_AXIS_X) {
+            printf("Check X  ");
             s->mouse_dx += evt->rel->value;
             dcd = z8530_get_reg(s->z8530, 0, 0);
             z8530_set_reg(s->z8530, 0, 0, dcd ^ 0x08);
@@ -44,8 +45,10 @@ static void mouse_event(DeviceState *dev, QemuConsole *src,
             if (dcd == 1 && evt->rel->value > 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) & 0xef);
             mouse_interrupt(s->z8530, 0);
         } else if (evt->rel->axis == INPUT_AXIS_Y) {
+            printf("Check Y  ");
             s->mouse_dy -= evt->rel->value;
             dcd = z8530_get_reg(s->z8530, 1, 0);
+            printf("Dcd %x", dcd);
             z8530_set_reg(s->z8530, 1, 0, dcd ^ 0x08);
             if (dcd == 0 && evt->rel->value < 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) & 0xdf);
             if (dcd == 0 && evt->rel->value > 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) | 0x20);

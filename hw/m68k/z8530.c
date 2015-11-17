@@ -203,6 +203,9 @@ static void z8530_mem_write(void *opaque, hwaddr addr,
                 }*/
                 z8530_update_irq(s);
                 break;
+            case 0x10:
+                m68k_set_irq_level(state->cpu, 0, 0x68 >> 2);
+                break;
             default:
                 break;
             }
@@ -314,7 +317,7 @@ void z8530_set_reg(Z8530State *s, uint8_t chn_id, uint8_t number, uint8_t value)
 void mouse_interrupt(void * opaque, uint8_t chn_id)
 {
     Z8530State *s = opaque;
-
+    printf("Chn_ID = %u", chn_id);
     if (s->chn[chn_id].wregs[W_EXTINT] & EXTINT_DCD) {
         if (chn_id == 0) {
             s->chn[0].rregs[R_IVEC] = 0x0a;
@@ -323,6 +326,7 @@ void mouse_interrupt(void * opaque, uint8_t chn_id)
             s->chn[0].rregs[R_IVEC] = 0x02;
             s->chn[1].rregs[R_IVEC] = 0x02;            
         }
+        printf("Lalala %x %x ", s->chn[0].rregs[R_IVEC], s->chn[1].rregs[R_IVEC]);
         m68k_set_irq_level(s->cpu, 1, 0x68 >> 2);
     } else {
         m68k_set_irq_level(s->cpu, 0, 0x68 >> 2);
