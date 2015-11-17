@@ -283,6 +283,7 @@ static uint64_t z8530_mem_read(void *opaque, hwaddr addr,
     switch (offset) {
     case SERIAL_CTRL:
         ret = s->rregs[s->reg];
+        qemu_log("z8530_mem_read : offset = %x, reg = %u, ret = %x\n", offset, s->reg, ret);
         s->reg = 0;
         return ret;
     case SERIAL_DATA:
