@@ -6,6 +6,8 @@
 #include "z8530.h"
 #include "mac_mouse.h"
 
+#define LIMIT 100
+
 typedef struct mouse_state {
     qemu_irq irq;
     uint8_t cmd;
@@ -35,25 +37,32 @@ static void mouse_event(DeviceState *dev, QemuConsole *src,
     switch (evt->kind) {
     case INPUT_EVENT_KIND_REL:
         if (evt->rel->axis == INPUT_AXIS_X) {
+            if (evt->rel->value == 0) break;
             printf("Check X  ");
-            s->mouse_dx += evt->rel->value;
+            s->mouse_dx += abs(evt->rel->value);
+            if (s->mouse_dx < LIMIT) break;
+            s->mouse_dx = 0;            
             dcd = z8530_get_reg(s->z8530, 0, 0);
             z8530_set_reg(s->z8530, 0, 0, dcd ^ 0x08);
-            if (dcd == 0 && evt->rel->value < 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) & 0xef);
-            if (dcd == 0 && evt->rel->value > 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) | 0x10);
-            if (dcd == 1 && evt->rel->value < 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) | 0x10);
-            if (dcd == 1 && evt->rel->value > 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) & 0xef);
+
+            if (dcd == 0 && evt->rel->value > 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) & 0xef);
+            if (dcd == 0 && evt->rel->value < 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) | 0x10);
+            if (dcd == 0x08 && evt->rel->value > 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) | 0x10);
+            if (dcd == 0x08 && evt->rel->value < 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) & 0xef);
             mouse_interrupt(s->z8530, 0);
         } else if (evt->rel->axis == INPUT_AXIS_Y) {
+            if (evt->rel->value == 0) break;
             printf("Check Y  ");
-            s->mouse_dy -= evt->rel->value;
+            s->mouse_dy += abs(evt->rel->value);
+            if (s->mouse_dy < LIMIT) break;
+            s->mouse_dy = 0;
             dcd = z8530_get_reg(s->z8530, 1, 0);
-            printf("Dcd %x", dcd);
             z8530_set_reg(s->z8530, 1, 0, dcd ^ 0x08);
+
             if (dcd == 0 && evt->rel->value < 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) & 0xdf);
             if (dcd == 0 && evt->rel->value > 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) | 0x20);
-            if (dcd == 1 && evt->rel->value < 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) | 0x20);
-            if (dcd == 1 && evt->rel->value > 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) & 0xdf);
+            if (dcd == 0x08 && evt->rel->value < 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) | 0x20);
+            if (dcd == 0x08 && evt->rel->value > 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) & 0xdf);
             mouse_interrupt(s->z8530, 1);
         }
         printf("Mouse: x = %d, y = %d\n", s->mouse_dx, s->mouse_dy);

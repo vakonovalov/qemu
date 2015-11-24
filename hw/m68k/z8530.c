@@ -172,13 +172,22 @@ static void z8530_mem_write(void *opaque, hwaddr addr,
     Z8530State *state = opaque;
     ChannelState *s;
     uint32_t offset;
-    int newreg, channel;
+    int newreg;
 
     val &= 0xff;
-    offset = ((addr - 0xbffff9) >> 2) & 1;
-    channel = ((addr - 0xbffff9) >> 1) & 1;
-    s = &state->chn[channel];
-    switch (offset) {
+    offset = addr - 0x3FFFF9;
+
+    if (offset != 0x0 && offset != 0x2 && offset != 0x4 && offset != 0x6) {
+        hw_error("Bad Z8530 write offset 0x%x", offset);
+    }
+
+    if (offset & 0x2) {
+        s = &state->chn[chn_a];
+    } else {
+        s = &state->chn[chn_b];
+    }
+
+    switch (offset >> 2) {
     case SERIAL_CTRL:
         newreg = 0;
         switch (s->reg) {
@@ -266,8 +275,6 @@ static void z8530_mem_write(void *opaque, hwaddr addr,
         set_txint(s);
 */
         break;
-    default:
-        break;
     }
 }
 
@@ -277,31 +284,37 @@ static uint64_t z8530_mem_read(void *opaque, hwaddr addr,
     Z8530State *state = opaque;
     ChannelState *s;
     uint32_t offset;
-    uint32_t ret;
-    int channel;
+    uint32_t ret = 0;
 
-    offset = ((addr - 0x9FFFF8) >> 2) & 1;
-    channel = ((addr - 0x9FFFF8) >> 1) & 1;
-    s = &state->chn[channel];
-    switch (offset) {
+    offset = addr - 0x1FFFF8;
+
+    if (offset != 0x0 && offset != 0x2 && offset != 0x4 && offset != 0x6) {
+        hw_error("Bad Z8530 read offset 0x%x", offset);
+    }
+
+    if (offset & 0x2) {
+        s = &state->chn[chn_a];
+    } else {
+        s = &state->chn[chn_b];
+    }
+    
+    switch (offset >> 2) {
     case SERIAL_CTRL:
         ret = s->rregs[s->reg];
         qemu_log("z8530_mem_read : offset = %x, reg = %u, ret = %x\n", offset, s->reg, ret);
         s->reg = 0;
-        return ret;
+        break;
+
     case SERIAL_DATA:
         s->rregs[R_STATUS] &= ~STATUS_RXAV;
-//        clr_rxint(s);
-//        if (s->type == mouse)
-//            ret = get_queue(s);
-//        else
-//            ret = s->rx;
-        ret = 1;
-        return ret;
-    default:
+//      clr_rxint(s);
+//      if (s->type == mouse)
+//          ret = get_queue(s);
+//      else
+//          ret = s->rx;
         break;
     }
-    return 0;
+    return ret;
 }
 
 uint8_t z8530_get_reg(Z8530State *s, uint8_t chn_id, uint8_t number) 
@@ -317,16 +330,15 @@ void z8530_set_reg(Z8530State *s, uint8_t chn_id, uint8_t number, uint8_t value)
 void mouse_interrupt(void * opaque, uint8_t chn_id)
 {
     Z8530State *s = opaque;
-    printf("Chn_ID = %u", chn_id);
+
     if (s->chn[chn_id].wregs[W_EXTINT] & EXTINT_DCD) {
-        if (chn_id == 0) {
+        if (chn_id == chn_a) {
             s->chn[0].rregs[R_IVEC] = 0x0a;
             s->chn[1].rregs[R_IVEC] = 0x0a;
         } else {
             s->chn[0].rregs[R_IVEC] = 0x02;
             s->chn[1].rregs[R_IVEC] = 0x02;            
         }
-        printf("Lalala %x %x ", s->chn[0].rregs[R_IVEC], s->chn[1].rregs[R_IVEC]);
         m68k_set_irq_level(s->cpu, 1, 0x68 >> 2);
     } else {
         m68k_set_irq_level(s->cpu, 0, 0x68 >> 2);
