@@ -69,6 +69,8 @@ typedef struct {
     uint8_t regs[DRIVE][IWM_REGS];
     uint8_t status_reg[DRIVE];
     uint8_t mode_reg[DRIVE];
+    uint8_t data_reg[DRIVE];
+    uint8_t handshake_reg[DRIVE];
 } iwm_state;
 
 static uint32_t iwm_get_drive(iwm_state *s)
@@ -128,12 +130,17 @@ static void iwm_writeb(void *opaque, hwaddr offset,
     if ((offset % 2) && (offset >> 1 == LSTRB)) {
         cmd_handw(s);
     }
-    if (s->lines[Q6] && s->lines[Q7] && !s->lines[ENABLE]) {
-        s->mode_reg  [iwm_get_drive(s)] = value;
-        s->status_reg[iwm_get_drive(s)] = (s->status_reg[iwm_get_drive(s)] & MODE_RBITS_MASK)
-                                        | (value & ~MODE_RBITS_MASK);
-        qemu_log("iwm: write mode_reg: %x\n",   s->mode_reg  [iwm_get_drive(s)]);
-        qemu_log("iwm: write status_reg: %x\n", s->status_reg[iwm_get_drive(s)]);
+    if (s->lines[Q6] && s->lines[Q7]) {
+        if (!s->lines[ENABLE]) {
+            s->mode_reg  [iwm_get_drive(s)] = value;
+            s->status_reg[iwm_get_drive(s)] = (s->status_reg[iwm_get_drive(s)] & MODE_RBITS_MASK)
+                                            | (value & ~MODE_RBITS_MASK);
+            qemu_log("iwm: write mode_reg: %x\n",   s->mode_reg  [iwm_get_drive(s)]);
+            qemu_log("iwm: write status_reg: %x\n", s->status_reg[iwm_get_drive(s)]);
+        } else {
+            s->data_reg  [iwm_get_drive(s)] = value;
+            qemu_log("iwm: write data_reg: %x\n",   s->data_reg  [iwm_get_drive(s)]);
+        }
     }
 }
 
@@ -153,6 +160,16 @@ static uint32_t iwm_readb(void *opaque, hwaddr offset)
         qemu_log("iwm: read status_reg: %x\n", s->status_reg[iwm_get_drive(s)]);
         return (s->lines[offset >> 1] & HIGHBIT_MASK) |
                (s->status_reg[iwm_get_drive(s)] & ~HIGHBIT_MASK);
+    } else if (!s->lines[Q6]) {
+        if (s->lines[Q7]) {
+            qemu_log("iwm: read handshake_reg: %x\n", s->handshake_reg[iwm_get_drive(s)]);
+            return (s->lines[offset >> 1] & HIGHBIT_MASK) |
+                   (s->handshake_reg[iwm_get_drive(s)] & ~HIGHBIT_MASK);
+        } else {
+            qemu_log("iwm: read data_reg: %x\n", s->data_reg[iwm_get_drive(s)]);
+            return (s->lines[offset >> 1] & HIGHBIT_MASK) |
+                   (s->data_reg[iwm_get_drive(s)] & ~HIGHBIT_MASK);
+        }
     }
     qemu_log("iwm: read unk_reg: %x, Q6(%x), Q7(%x)\n",
              s->lines[offset >> 1], s->lines[Q6], s->lines[Q7]);
