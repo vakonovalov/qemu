@@ -64,7 +64,7 @@ typedef struct {
     MemoryRegion iomem;
     /* base address */
     target_ulong base;
-    via_state *via; 
+    via_state *via;
     uint8_t lines[IWM_LINES];
     uint8_t regs[DRIVE][IWM_REGS];
     uint8_t status_reg[DRIVE];
@@ -111,12 +111,6 @@ static void cmd_handr(iwm_state *s)
     } else {
         s->lines[Q7] &= ~HIGHBIT_MASK;
         s->lines[Q7] |= (reg[cmd] << HIGHBIT) & HIGHBIT_MASK;
-        if (cmd == CSTIN) {
-            // no disk yet
-            // 0xff - no disk?
-            // 0x1f - disk is inside? ROM decides to go deeper
-            s->lines[Q7] = 0x1f;
-        }
         qemu_log("iwm: read %s register\n", iwm_regs[cmd]);
     }
 }
@@ -137,7 +131,9 @@ static void iwm_writeb(void *opaque, hwaddr offset,
     if (s->lines[Q6] && s->lines[Q7] && !s->lines[ENABLE]) {
         s->mode_reg  [iwm_get_drive(s)] = value;
         s->status_reg[iwm_get_drive(s)] = (s->status_reg[iwm_get_drive(s)] & MODE_RBITS_MASK)
-        	                            | (value & ~MODE_RBITS_MASK);
+                                        | (value & ~MODE_RBITS_MASK);
+        qemu_log("iwm: write mode_reg: %x\n",   s->mode_reg  [iwm_get_drive(s)]);
+        qemu_log("iwm: write status_reg: %x\n", s->status_reg[iwm_get_drive(s)]);
     }
 }
 
@@ -153,6 +149,13 @@ static uint32_t iwm_readb(void *opaque, hwaddr offset)
     if (s->lines[Q6] && (offset >> 1 == Q7) && !s->lines[LSTRB]) {
         cmd_handr(s);
     }
+    if (s->lines[Q6] && !s->lines[Q7]) {
+        qemu_log("iwm: read status_reg: %x\n", s->status_reg[iwm_get_drive(s)]);
+        return (s->lines[offset >> 1] & HIGHBIT_MASK) |
+               (s->status_reg[iwm_get_drive(s)] & ~HIGHBIT_MASK);
+    }
+    qemu_log("iwm: read unk_reg: %x, Q6(%x), Q7(%x)\n",
+             s->lines[offset >> 1], s->lines[Q6], s->lines[Q7]);
     return s->lines[offset >> 1];
 }
 
