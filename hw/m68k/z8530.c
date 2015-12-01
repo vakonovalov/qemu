@@ -175,11 +175,7 @@ static void z8530_mem_write(void *opaque, hwaddr addr,
     int newreg;
 
     val &= 0xff;
-    offset = addr - 0x3FFFF9;
-
-    if (offset != 0x0 && offset != 0x2 && offset != 0x4 && offset != 0x6) {
-        hw_error("Bad Z8530 write offset 0x%x", offset);
-    }
+    offset = addr;
 
     if (offset & 0x2) {
         s = &state->chn[chn_a];
@@ -187,7 +183,7 @@ static void z8530_mem_write(void *opaque, hwaddr addr,
         s = &state->chn[chn_b];
     }
 
-    switch (offset >> 2) {
+    switch ((offset >> 2) & 1) {
     case SERIAL_CTRL:
         newreg = 0;
         switch (s->reg) {
@@ -288,9 +284,9 @@ static uint64_t z8530_mem_read(void *opaque, hwaddr addr,
 
     offset = addr - 0x1FFFF8;
 
-    if (offset != 0x0 && offset != 0x2 && offset != 0x4 && offset != 0x6) {
-        hw_error("Bad Z8530 read offset 0x%x", offset);
-    }
+    //if (offset != 0x0 && offset != 0x2 && offset != 0x4 && offset != 0x6) {
+   //     hw_error("Bad Z8530 read offset 0x%x", offset);
+    //}
 
     if (offset & 0x2) {
         s = &state->chn[chn_a];
@@ -298,7 +294,7 @@ static uint64_t z8530_mem_read(void *opaque, hwaddr addr,
         s = &state->chn[chn_b];
     }
     
-    switch (offset >> 2) {
+    switch ((offset >> 2) & 0x1) {
     case SERIAL_CTRL:
         ret = s->rregs[s->reg];
         qemu_log("z8530_mem_read : offset = %x, reg = %u, ret = %x\n", offset, s->reg, ret);
