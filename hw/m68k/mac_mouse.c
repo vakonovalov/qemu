@@ -6,14 +6,14 @@
 #include "z8530.h"
 #include "mac_mouse.h"
 
-#define DIVIDER 100000
+#define FREQUENCY 16625800LL
+#define MOUSE_LIMIT 1
 
 typedef struct mouse_state {
     qemu_irq irq;
     uint8_t cmd;
     uint8_t model_number_flag;
-    QEMUTimer *timer_x;
-    QEMUTimer *timer_y;    
+    QEMUTimer *timer;
     via_state *via;
     Z8530State *z8530;
     int32_t mouse_dx;
@@ -39,15 +39,18 @@ static void mouse_event(DeviceState *dev, QemuConsole *src,
         if (evt->rel->axis == INPUT_AXIS_X) {
             if (evt->rel->value == 0) break;
             printf("Check X  ");
-            s->mouse_dx += evt->rel->value;         
+            s->mouse_dx += evt->rel->value;                     
+            if (abs(s->mouse_dx) > MOUSE_LIMIT-1) {
+                timer_mod_ns(s->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + FREQUENCY);                
+            }
 
-            timer_mod_ns(s->timer_x, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + get_ticks_per_sec() / DIVIDER);
         } else if (evt->rel->axis == INPUT_AXIS_Y) {
             if (evt->rel->value == 0) break;
             printf("Check Y  ");
-            s->mouse_dy -= evt->rel->value;
-
-            timer_mod_ns(s->timer_y, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + get_ticks_per_sec() / DIVIDER);            
+            s->mouse_dy -= evt->rel->value;            
+            if (abs(s->mouse_dy) > MOUSE_LIMIT-1) {
+                timer_mod_ns(s->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + FREQUENCY);            
+            }        
         }
         printf("Mouse: x = %d, y = %d\n", s->mouse_dx, s->mouse_dy);
         break;
@@ -59,6 +62,7 @@ static void mouse_event(DeviceState *dev, QemuConsole *src,
             s->mouse_button = 0;
         }
         printf("Mouse: button = %d\n", s->mouse_button);
+        printf("Mouse: x = %d, y = %d, button = %d\n", s->mouse_dx, s->mouse_dy, s->mouse_button);        
         break;
 
     default:
@@ -69,50 +73,77 @@ static void mouse_event(DeviceState *dev, QemuConsole *src,
     //printf("Mouse: x = %d, y = %d, button = %d\n", s->mouse_dx, s->mouse_dy, s->mouse_button);
 }
 
-static void timer_x_callback(void *opaque)
-{
-    mouse_state *s = opaque;
-    uint8_t dcd;    
-
-    if (s->mouse_dx) {
-        dcd = z8530_get_reg(s->z8530, 0, 0);
-        z8530_set_reg(s->z8530, 0, 0, dcd ^ 0x08);
-        if (s->mouse_dx > 0) {
-            if (dcd == 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) & 0xef);
-            if (dcd == 0x08) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) | 0x10);
-            s->mouse_dx--;
-        } else {
-            if (dcd == 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) | 0x10);
-            if (dcd == 0x08) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) & 0xef);
-            s->mouse_dx++;
-        } 
-        mouse_interrupt(s->z8530, 0);
-        if (s->mouse_dx)
-            timer_mod_ns(s->timer_x, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + get_ticks_per_sec() / DIVIDER);
-    }
-}
-
-static void timer_y_callback(void *opaque)
+static void timer_callback(void *opaque)
 {
     mouse_state *s = opaque;
     uint8_t dcd;
+//    static bool flag = 0;
+/*
+    if ((abs(s->mouse_dx) > MOUSE_LIMIT) && (abs(s->mouse_dy) > MOUSE_LIMIT)) {
+        if (!flag) {
+            flag = 1;
+            dcd = z8530_get_reg(s->z8530, 0, 0);
+            z8530_set_reg(s->z8530, 0, 0, dcd ^ 0x08);
+            if (s->mouse_dx > 0) {
+                if (dcd == 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) & 0xef);
+                if (dcd == 0x08) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) | 0x10);
+                s->mouse_dx-= MOUSE_LIMIT;
+            } else {
+                if (dcd == 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) | 0x10);
+                if (dcd == 0x08) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) & 0xef);
+                s->mouse_dx+= MOUSE_LIMIT;
+            } 
+            mouse_interrupt(s->z8530, 0);
+        } else {
+            flag = 0;
+            dcd = z8530_get_reg(s->z8530, 1, 0);
+            z8530_set_reg(s->z8530, 1, 0, dcd ^ 0x08);
+            if (s->mouse_dy > 0) {
+                if (dcd == 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) & 0xdf);
+                if (dcd == 0x08) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) | 0x20);
+                s->mouse_dy-= MOUSE_LIMIT;
+            } else {
+                if (dcd == 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) | 0x20);
+                if (dcd == 0x08) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) & 0xdf);
+                s->mouse_dy+= MOUSE_LIMIT;
+            } 
+            mouse_interrupt(s->z8530, 1);
+        }
+        timer_mod_ns(s->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + FREQUENCY);           
+        return;
+    }*/
 
-    if (s->mouse_dy) {
+    if (abs(s->mouse_dx) > MOUSE_LIMIT-1) {
+        dcd = z8530_get_reg(s->z8530, 0, 0);
+        z8530_set_reg(s->z8530, 0, 0, dcd ^ 0x08);
+ //       printf("DCD = %x", dcd);
+        if (s->mouse_dx > 0) {
+            if ((dcd & 0x08) == 0) {printf("Variant1\n");via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) & 0xef);}
+            if ((dcd & 0x08) == 0x08) {printf("Variant2\n");via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) | 0x10);}
+            s->mouse_dx-= MOUSE_LIMIT;
+        } else {
+            if ((dcd & 0x08) == 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) | 0x10);
+            if ((dcd & 0x08) == 0x08) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) & 0xef);
+            s->mouse_dx+= MOUSE_LIMIT;
+        } 
+        mouse_interrupt(s->z8530, 0);
+    } else if (abs(s->mouse_dy) > MOUSE_LIMIT-1) {
         dcd = z8530_get_reg(s->z8530, 1, 0);
         z8530_set_reg(s->z8530, 1, 0, dcd ^ 0x08);
         if (s->mouse_dy > 0) {
-            if (dcd == 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) & 0xdf);
-            if (dcd == 0x08) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) | 0x20);
-            s->mouse_dy--;
+            if ((dcd & 0x08) == 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) & 0xdf);
+            if ((dcd & 0x08) == 0x08) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) | 0x20);
+            s->mouse_dy-= MOUSE_LIMIT;
         } else {
-            if (dcd == 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) | 0x20);
-            if (dcd == 0x08) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) & 0xdf);
-            s->mouse_dy++;
+            if ((dcd & 0x08) == 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) | 0x20);
+            if ((dcd & 0x08) == 0x08) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) & 0xdf);
+            s->mouse_dy+= MOUSE_LIMIT;
         } 
         mouse_interrupt(s->z8530, 1);
-        if (s->mouse_dy)
-            timer_mod_ns(s->timer_y, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + get_ticks_per_sec() / DIVIDER);
-    }      
+    }
+
+    if ((abs(s->mouse_dx) > MOUSE_LIMIT-1) || (abs(s->mouse_dy) > MOUSE_LIMIT-1))
+        timer_mod_ns(s->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + FREQUENCY);
 }
 
 static void mouse_reset(void *opaque)
@@ -131,8 +162,7 @@ mouse_state *mouse_init(Z8530State *z8530, via_state *via)
     s->irq = NULL;
     qemu_input_handler_register((DeviceState *)s,
                                 &mouse_handler);
-    s->timer_x = timer_new_ns(QEMU_CLOCK_VIRTUAL, timer_x_callback, s);
-    s->timer_y = timer_new_ns(QEMU_CLOCK_VIRTUAL, timer_y_callback, s);
+    s->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, timer_callback, s);
     qemu_register_reset(mouse_reset, s);
     mouse_reset(s);
 
