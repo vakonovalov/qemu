@@ -181,7 +181,6 @@ static void via_set_reg_vT2C(via_state *s, uint8_t val) {
 }
 
 static void via_set_reg_vT2CH(via_state *s, uint8_t val) {
-/* 0.9792 */
     qemu_log("via: ACR T2 mode: %x\n", !!(s->regs[vACR] & 0x20));
     s->regs[vT2CH] = val;
     via_set_reg_vIFR(s, s->regs[vIFR] & 0xdf);
