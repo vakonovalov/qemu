@@ -18,11 +18,12 @@
 #include "mac_keyboard.h"
 
 #define REGA_OVERLAY_MASK (1 << 4)
+#define F2_RATE 10000
 
-typedef struct vbi_state {
+typedef struct timer_state {
     qemu_irq irq;
     QEMUTimer *timer;
-} vbi_state;
+} timer_state;
 
 typedef struct via_state {
     M68kCPU *cpu;
@@ -33,8 +34,14 @@ typedef struct via_state {
     target_ulong base;
     /* registers */
     uint8_t regs[VIA_REGS];
+    /* real time clock */
     rtc_state *rtc;
-    vbi_state *vbi;
+    /* vertical blanking interrupt */
+    timer_state *vbi;
+    /* timer 2 */
+    timer_state *t2;
+    uint8_t t2_latch;
+    /* keyboard */
     keyboard_state *keyboard;
 } via_state;
 
@@ -42,6 +49,41 @@ const char *via_regs[VIA_REGS] = {"vBufB", "---", "vDirB", "vDirA", "vT1C",
                                   "vT1CH", "vT1L", "vT1LH", "vT2C",
                                   "vT2CH", "vSR", "vACR", "vPCR",
                                   "vIFR", "vIER", "vBufA"};
+
+static void timer2_interrupt(void * opaque)
+{
+    via_state *s = opaque;
+    if (s->regs[vT2C]) {
+        s->regs[vT2C]--;
+    } else {
+        s->regs[vT2C] = 0xff;
+        if (s->regs[vT2CH]) {
+            s->regs[vT2CH]--;
+        } else {
+            s->regs[vT2CH] = 0xff;
+        }
+    }   
+    if (!s->regs[vT2C] && !s->regs[vT2CH] && s->t2_latch) {
+        qemu_irq_raise(s->t2->irq);
+        s->t2_latch = 0;
+    }
+    timer_mod_ns(s->t2->timer, qemu_clock_get_ns(rtc_clock) + F2_RATE);
+}
+
+static timer_state *timer2_init(via_state *via, qemu_irq irq)
+{
+    timer_state *s = (timer_state *)g_malloc0(sizeof(timer_state));
+    
+    s->irq = irq;
+    s->timer = timer_new_ns(rtc_clock, timer2_interrupt, via);
+    return s;
+}
+
+static void timer2_reset(via_state *s)
+{
+    s->t2_latch = 1;
+    timer_mod_ns(s->t2->timer, qemu_clock_get_ns(rtc_clock) + F2_RATE);
+}
 
 static void via_set_reg_vBufA(via_state *s, uint8_t val)
 {
@@ -133,10 +175,27 @@ static void via_set_reg_vIER(via_state *s, uint8_t val)
     qemu_log("via: vIER set to 0x%x\n", s->regs[vIER]);
 }
 
+static void via_set_reg_vT2C(via_state *s, uint8_t val) {
+    s->regs[vT2C] = val;
+    qemu_log("via: vT2C set to 0x%x\n", s->regs[vT2C]);
+}
+
+static void via_set_reg_vT2CH(via_state *s, uint8_t val) {
+    qemu_log("via: ACR T2 mode: %x\n", !!(s->regs[vACR] & 0x20));
+    s->regs[vT2CH] = val;
+    via_set_reg_vIFR(s, s->regs[vIFR] & 0xdf);
+    qemu_log("via: vT2CH set to 0x%x\n", s->regs[vT2CH]);
+    timer2_reset(s);
+}
+
 static void via_set_reg_vSR(via_state *s, uint8_t val)
 {
     s->regs[vSR] = val;
     qemu_log("via: vSR set to 0x%x\n", s->regs[vSR]);
+    /* bit 4 of ACR is SR input/output control */
+    if (via_get_reg(s, vACR) & 0x10) {
+        keyboard_handle_cmd(s->keyboard);
+    }
 }
 
 static void via_writeb(void *opaque, hwaddr offset,
@@ -149,10 +208,6 @@ static void via_writeb(void *opaque, hwaddr offset,
     }
     qemu_log("via: write in %s 0x%x\n", via_regs[offset], value);
     via_set_reg(s, offset, value);
-    /* bit 4 of ACR is SR input/output control */
-    if (offset == vSR && (via_get_reg(s, vACR) & 0x10)) {
-        keyboard_handle_cmd(s->keyboard);
-    }
 }
 
 static uint32_t via_readb(void *opaque, hwaddr offset)
@@ -172,7 +227,9 @@ static uint32_t via_readb(void *opaque, hwaddr offset)
 uint8_t via_get_reg(via_state *s, uint8_t offset)
 {
     if (offset == vSR) {
-        via_set_reg_vIFR(s, s->regs[vIFR] & 0xfb);
+        via_set_reg_vIFR(s, 0x04);
+    } else if (offset == vT2C) {
+        via_set_reg_vIFR(s, 0x10);
     }
 
     return s->regs[offset];
@@ -199,7 +256,13 @@ void via_set_reg(via_state *via, uint8_t offset, uint8_t value)
     case vIER:
         via_set_reg_vIER(via, value);
         break;
-    default:
+    case vT2C:
+        via_set_reg_vT2C(via, value);
+        break;
+    case vT2CH:
+        via_set_reg_vT2CH(via, value);
+        break;
+    default: 
         if (offset < VIA_REGS) {
             via->regs[offset] = value;
         }
@@ -242,15 +305,15 @@ static void sy6522_reset(void *opaque)
 
 static void vbi_interrupt(void * opaque)
 {
-    vbi_state *vbi = opaque;
+    timer_state *vbi = opaque;
     
     timer_mod_ns(vbi->timer, qemu_clock_get_ns(rtc_clock) + 16625800);
     qemu_irq_raise(vbi->irq);
 }
 
-static vbi_state *vbi_init(qemu_irq irq)
+static timer_state *vbi_init(qemu_irq irq)
 {
-    vbi_state *s = (vbi_state *)g_malloc0(sizeof(vbi_state));
+    timer_state *s = (timer_state *)g_malloc0(sizeof(timer_state));
     
     s->irq = irq;
     s->timer = timer_new_ns(rtc_clock, vbi_interrupt, s);
@@ -280,6 +343,7 @@ via_state *sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
 
     s->rtc = rtc_init(pic[0]);
     s->vbi = vbi_init(pic[1]);
+    s->t2 = timer2_init(s, pic[5]);
     s->keyboard = keyboard_init(s, pic[2]);
 
     qemu_register_reset(sy6522_reset, s);

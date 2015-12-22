@@ -11,6 +11,7 @@
 #define LOWBIT 0
 #define LOWBIT_MASK (1 << LOWBIT)
 #define CMDW_MASK 0x06
+#define MODE_RBITS_MASK 0xE0
 
 enum
 {
@@ -49,6 +50,15 @@ const char *iwm_regs[IWM_REGS] = {"DIRTN", "CSTIN", "STEP", "WRTPRT", "MOTORON",
                                   "TKO", "EJECT", "TACH", "RDDATA0", "RDDATA1",
                                   "---", "---", "SIDES", "---", "---", "DRVIN"};
 
+enum
+{
+    INTERNAL = 0,
+    EXTERNAL = 1,
+    DRIVE    = 2,
+};
+
+const char *drive_regs[DRIVE] = {"INTERNAL", "EXTERNAL"};
+
 typedef struct {
     M68kCPU *cpu;
     MemoryRegion iomem;
@@ -56,16 +66,19 @@ typedef struct {
     target_ulong base;
     via_state *via;
     uint8_t lines[IWM_LINES];
-    uint8_t internal_regs[IWM_REGS];
-    uint8_t external_regs[IWM_REGS];
+    uint8_t regs[DRIVE][IWM_REGS];
+    uint8_t status_reg[DRIVE];
+    uint8_t mode_reg[DRIVE];
+    uint8_t data_reg[DRIVE];
+    uint8_t handshake_reg[DRIVE];
 } iwm_state;
 
-static uint8_t *iwm_get_regs(iwm_state *s)
+static uint32_t iwm_get_drive(iwm_state *s)
 {
     if (s->lines[SELECT]) {
-        return s->external_regs;
+        return EXTERNAL;
     } else {
-        return s->internal_regs;
+        return INTERNAL;
     }
 }
 
@@ -73,7 +86,7 @@ static void cmd_handw(iwm_state *s)
 {
     uint8_t sel = via_get_reg(s->via, vBufA);
     uint8_t cmd = 0;
-    uint8_t *reg = iwm_get_regs(s);
+    uint8_t *reg = s->regs[iwm_get_drive(s)];
     cmd |= s->lines[CA1] & LOWBIT_MASK;
     cmd = (cmd << 1) | (s->lines[CA0] & LOWBIT_MASK);
     cmd = (cmd << 1) | ((sel & REGA_SEL_MASK) >> SELBIT);
@@ -90,7 +103,7 @@ static void cmd_handr(iwm_state *s)
 {
     uint8_t sel = via_get_reg(s->via, vBufA);
     uint8_t cmd = 0;
-    uint8_t *reg = iwm_get_regs(s);
+    uint8_t *reg = s->regs[iwm_get_drive(s)];
     cmd |= s->lines[CA2] & LOWBIT_MASK;
     cmd = (cmd << 1) | (s->lines[CA1] & LOWBIT_MASK);
     cmd = (cmd << 1) | (s->lines[CA0] & LOWBIT_MASK);
@@ -100,12 +113,6 @@ static void cmd_handr(iwm_state *s)
     } else {
         s->lines[Q7] &= ~HIGHBIT_MASK;
         s->lines[Q7] |= (reg[cmd] << HIGHBIT) & HIGHBIT_MASK;
-        if (cmd == CSTIN) {
-            // no disk yet
-            // 0xff - no disk?
-            // 0x1f - disk is inside? ROM decides to go deeper
-            s->lines[Q7] = 0x1f;
-        }
         qemu_log("iwm: read %s register\n", iwm_regs[cmd]);
     }
 }
@@ -123,6 +130,18 @@ static void iwm_writeb(void *opaque, hwaddr offset,
     if ((offset % 2) && (offset >> 1 == LSTRB)) {
         cmd_handw(s);
     }
+    if (s->lines[Q6] && s->lines[Q7]) {
+        if (!s->lines[ENABLE]) {
+            s->mode_reg  [iwm_get_drive(s)] = value;
+            s->status_reg[iwm_get_drive(s)] = (s->status_reg[iwm_get_drive(s)] & MODE_RBITS_MASK)
+                                            | (value & ~MODE_RBITS_MASK);
+            qemu_log("iwm: write mode_reg: %x\n",   s->mode_reg  [iwm_get_drive(s)]);
+            qemu_log("iwm: write status_reg: %x\n", s->status_reg[iwm_get_drive(s)]);
+        } else {
+            s->data_reg  [iwm_get_drive(s)] = value;
+            qemu_log("iwm: write data_reg: %x\n",   s->data_reg  [iwm_get_drive(s)]);
+        }
+    }
 }
 
 static uint32_t iwm_readb(void *opaque, hwaddr offset)
@@ -137,6 +156,23 @@ static uint32_t iwm_readb(void *opaque, hwaddr offset)
     if (s->lines[Q6] && (offset >> 1 == Q7) && !s->lines[LSTRB]) {
         cmd_handr(s);
     }
+    if (s->lines[Q6] && !(s->lines[Q7] & ~HIGHBIT_MASK)) {
+        qemu_log("iwm: read status_reg: %x\n", s->status_reg[iwm_get_drive(s)]);
+        return (s->lines[offset >> 1] & HIGHBIT_MASK) |
+               (s->status_reg[iwm_get_drive(s)] & ~HIGHBIT_MASK);
+    } else if (!s->lines[Q6]) {
+        if (s->lines[Q7] & ~HIGHBIT_MASK) {
+            qemu_log("iwm: read handshake_reg: %x\n", s->handshake_reg[iwm_get_drive(s)]);
+            return (s->lines[offset >> 1] & HIGHBIT_MASK) |
+                   (s->handshake_reg[iwm_get_drive(s)] & ~HIGHBIT_MASK);
+        } else {
+            qemu_log("iwm: read data_reg: %x\n", s->data_reg[iwm_get_drive(s)]);
+            return (s->lines[offset >> 1] & HIGHBIT_MASK) |
+                   (s->data_reg[iwm_get_drive(s)] & ~HIGHBIT_MASK);
+        }
+    }
+    qemu_log("iwm: read unk_reg: %x, Q6(%x), Q7(%x)\n",
+             s->lines[offset >> 1], s->lines[Q6], s->lines[Q7]);
     return s->lines[offset >> 1];
 }
 
@@ -163,10 +199,10 @@ static void iwm_reset(void *opaque)
     for (i = 0; i < IWM_LINES; i++) {
         s->lines[i] = 0;
     }
-    s->internal_regs[MOTORON] = 1;
-    s->external_regs[MOTORON] = 1;
-    s->internal_regs[WRTPRT] = 1;
-    s->external_regs[WRTPRT] = 1;
+    s->regs[INTERNAL][MOTORON] = 1;
+    s->regs[EXTERNAL][MOTORON] = 1;
+    s->regs[INTERNAL][WRTPRT]  = 1;
+    s->regs[EXTERNAL][WRTPRT]  = 1;
 }
 
 void iwm_init(MemoryRegion *sysmem, uint32_t base, M68kCPU *cpu, via_state *via)
