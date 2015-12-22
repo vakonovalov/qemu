@@ -118,8 +118,14 @@ static void timer_callback(void *opaque)
         z8530_set_reg(s->z8530, 0, 0, dcd ^ 0x08);
  //       printf("DCD = %x", dcd);
         if (s->mouse_dx > 0) {
-            if ((dcd & 0x08) == 0) {printf("Variant1\n");via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) & 0xef);}
-            if ((dcd & 0x08) == 0x08) {printf("Variant2\n");via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) | 0x10);}
+            if ((dcd & 0x08) == 0) {
+                qemu_log("Variant1\n");
+                via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) & 0xef);
+            }
+            if ((dcd & 0x08) == 0x08) {
+                qemu_log("Variant2\n");
+                via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) | 0x10);
+            }
             s->mouse_dx-= MOUSE_LIMIT;
         } else {
             if ((dcd & 0x08) == 0) via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) | 0x10);

@@ -16,6 +16,7 @@
 #include "sy6522.h"
 #include "mac_rtc.h"
 #include "mac_keyboard.h"
+#include "int_control.h"
 
 #define REGA_OVERLAY_MASK (1 << 4)
 
@@ -112,9 +113,9 @@ static void via_set_reg_vIFR(via_state *s, uint8_t val)
     s->regs[vIFR] = (!!(s->regs[vIER] & s->regs[vIFR] & 0x7f) << 7) | (s->regs[vIFR] & 0x7f);
 
     if (s->regs[vIFR] & 0x80) {
-        m68k_set_irq_level(s->cpu, 1, 0x64 >> 2);
+        set_hw_irq(s->cpu, 1, 0x64 >> 2);
     } else {
-        m68k_set_irq_level(s->cpu, 0, 0x64 >> 2);
+        set_hw_irq(s->cpu, 0, 0x64 >> 2);
     }
 
     qemu_log("via: vIFR set to 0x%x\n", s->regs[vIFR]);

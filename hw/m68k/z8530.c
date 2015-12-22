@@ -8,6 +8,7 @@
 //#include "sy6522.h"
 #include "mac_mouse.h"
 #include "z8530.h"
+#include "int_control.h"
 
 typedef enum {
     chn_a, chn_b,
@@ -182,74 +183,76 @@ static void z8530_mem_write(void *opaque, hwaddr addr,
     } else {
         s = &state->chn[chn_b];
     }
-
+    qemu_log("z8530_mem_write %llx\n", (long long unsigned int)val);
     switch ((offset >> 2) & 1) {
     case SERIAL_CTRL:
         newreg = 0;
         switch (s->reg) {
-        case W_CMD:
-            newreg = val & CMD_PTR_MASK;
-            val &= CMD_CMD_MASK;
-            switch (val) {
-            case CMD_HI:
-                newreg |= CMD_HI;
+            case W_CMD:
+
+                newreg = val & CMD_PTR_MASK;
+                val &= CMD_CMD_MASK;
+                switch (val) {
+                    case CMD_HI:
+                        newreg |= CMD_HI;
+                        break;
+                    case CMD_CLR_TXINT:
+        //                clr_txint(s);
+                        break;
+                    case CMD_CLR_IUS:
+        /*                if (s->rxint_under_svc) {
+                            s->rxint_under_svc = 0;
+                            if (s->txint) {
+                                set_txint(s);
+                            }
+                        } else if (s->txint_under_svc) {
+                            s->txint_under_svc = 0;
+                        }*/
+                        z8530_update_irq(s);
+                        break;
+                    case 0x10:
+                        //printf("Flag unset\n");
+                        set_hw_irq(state->cpu, 0, 0x68 >> 2);
+                        break;
+                    default:
+                        break;
+                }
                 break;
-            case CMD_CLR_TXINT:
-//                clr_txint(s);
+            case W_INTR ... W_RXCTRL:
+            case W_SYNC1 ... W_TXBUF:
+            case W_MISC1 ... W_CLOCK:
+            case W_MISC2 ... W_EXTINT:
+                s->wregs[s->reg] = val;
                 break;
-            case CMD_CLR_IUS:
-/*                if (s->rxint_under_svc) {
-                    s->rxint_under_svc = 0;
-                    if (s->txint) {
-                        set_txint(s);
-                    }
-                } else if (s->txint_under_svc) {
-                    s->txint_under_svc = 0;
-                }*/
-                z8530_update_irq(s);
+            case W_TXCTRL1:
+            case W_TXCTRL2:
+                s->wregs[s->reg] = val;
+    //            z8530_update_parameters(s);
                 break;
-            case 0x10:
-                m68k_set_irq_level(state->cpu, 0, 0x68 >> 2);
+            case W_BRGLO:
+            case W_BRGHI:
+                s->wregs[s->reg] = val;
+                s->rregs[s->reg] = val;
+     //           z8530_update_parameters(s);
+                break;
+            case W_MINTR:
+                switch (val & MINTR_RST_MASK) {
+                case 0:
+                default:
+                    break;
+                case MINTR_RST_B:
+                    z8530_reset_chn(&state->chn[0]);
+                    return;
+                case MINTR_RST_A:
+                    z8530_reset_chn(&state->chn[1]);
+                    return;
+                case MINTR_RST_ALL:
+                    z8530_reset(DEVICE(state));
+                    return;
+                }
                 break;
             default:
                 break;
-            }
-            break;
-        case W_INTR ... W_RXCTRL:
-        case W_SYNC1 ... W_TXBUF:
-        case W_MISC1 ... W_CLOCK:
-        case W_MISC2 ... W_EXTINT:
-            s->wregs[s->reg] = val;
-            break;
-        case W_TXCTRL1:
-        case W_TXCTRL2:
-            s->wregs[s->reg] = val;
-//            z8530_update_parameters(s);
-            break;
-        case W_BRGLO:
-        case W_BRGHI:
-            s->wregs[s->reg] = val;
-            s->rregs[s->reg] = val;
- //           z8530_update_parameters(s);
-            break;
-        case W_MINTR:
-            switch (val & MINTR_RST_MASK) {
-            case 0:
-            default:
-                break;
-            case MINTR_RST_B:
-                z8530_reset_chn(&state->chn[0]);
-                return;
-            case MINTR_RST_A:
-                z8530_reset_chn(&state->chn[1]);
-                return;
-            case MINTR_RST_ALL:
-                z8530_reset(DEVICE(state));
-                return;
-            }
-            break;
-        default:
-            break;
         }
         if (s->reg == 0)
             s->reg = newreg;
@@ -335,9 +338,10 @@ void mouse_interrupt(void * opaque, uint8_t chn_id)
             s->chn[0].rregs[R_IVEC] = 0x02;
             s->chn[1].rregs[R_IVEC] = 0x02;            
         }
-        m68k_set_irq_level(s->cpu, 1, 0x68 >> 2);
+        //printf("I am here %x\n", s->chn[0].rregs[R_IVEC]);
+        set_hw_irq(s->cpu, 1, 0x68 >> 2);
     } else {
-        m68k_set_irq_level(s->cpu, 0, 0x68 >> 2);
+        set_hw_irq(s->cpu, 0, 0x68 >> 2);
     }
 }
 
