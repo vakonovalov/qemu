@@ -184,6 +184,7 @@ static void via_set_reg_vT2CH(via_state *s, uint8_t val) {
 /* 0.9792 */
     qemu_log("via: ACR T2 mode: %x\n", !!(s->regs[vACR] & 0x20));
     s->regs[vT2CH] = val;
+    via_set_reg_vIFR(s, s->regs[vIFR] & 0xdf);
     qemu_log("via: vT2CH set to 0x%x\n", s->regs[vT2CH]);
     timer2_reset(s);
 }
@@ -192,6 +193,10 @@ static void via_set_reg_vSR(via_state *s, uint8_t val)
 {
     s->regs[vSR] = val;
     qemu_log("via: vSR set to 0x%x\n", s->regs[vSR]);
+    /* bit 4 of ACR is SR input/output control */
+    if (via_get_reg(s, vACR) & 0x10) {
+        keyboard_handle_cmd(s->keyboard);
+    }
 }
 
 static void via_writeb(void *opaque, hwaddr offset,
@@ -204,12 +209,6 @@ static void via_writeb(void *opaque, hwaddr offset,
     }
     qemu_log("via: write in %s 0x%x\n", via_regs[offset], value);
     via_set_reg(s, offset, value);
-    /* bit 4 of ACR is SR input/output control */
-    if (offset == vSR && (via_get_reg(s, vACR) & 0x10)) {
-        keyboard_handle_cmd(s->keyboard);
-    } else if (offset == vT2CH) {
-        via_set_reg_vIFR(s, s->regs[vIFR] & 0xdf);
-    }
 }
 
 static uint32_t via_readb(void *opaque, hwaddr offset)
@@ -229,9 +228,9 @@ static uint32_t via_readb(void *opaque, hwaddr offset)
 uint8_t via_get_reg(via_state *s, uint8_t offset)
 {
     if (offset == vSR) {
-        via_set_reg_vIFR(s, s->regs[vIFR] & 0xfb);
+        via_set_reg_vIFR(s, 0x04);
     } else if (offset == vT2C) {
-        via_set_reg_vIFR(s, s->regs[vIFR] & 0xdf);
+        via_set_reg_vIFR(s, 0x10);
     }
 
     return s->regs[offset];
@@ -267,7 +266,7 @@ void via_set_reg(via_state *via, uint8_t offset, uint8_t value)
     default: 
         if (offset < VIA_REGS) {
             via->regs[offset] = value;
-        }        
+        }
         break;
     }
 }
