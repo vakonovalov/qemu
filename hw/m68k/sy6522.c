@@ -18,7 +18,7 @@
 #include "mac_keyboard.h"
 
 #define REGA_OVERLAY_MASK (1 << 4)
-#define F2_RATE 10000
+#define F2_RATE 1000
 
 typedef struct timer_state {
     qemu_irq irq;
@@ -54,9 +54,8 @@ static void timer2_interrupt(void * opaque)
 {
     via_state *s = opaque;
     if (s->regs[vT2C]) {
-        s->regs[vT2C]--;
+        s->regs[vT2C] = 0;
     } else {
-        s->regs[vT2C] = 0xff;
         if (s->regs[vT2CH]) {
             s->regs[vT2CH]--;
         } else {
@@ -64,10 +63,11 @@ static void timer2_interrupt(void * opaque)
         }
     }   
     if (!s->regs[vT2C] && !s->regs[vT2CH] && s->t2_latch) {
+        qemu_log("via: T2 timer interrupt\n");
         qemu_irq_raise(s->t2->irq);
         s->t2_latch = 0;
     }
-    timer_mod_ns(s->t2->timer, qemu_clock_get_ns(rtc_clock) + F2_RATE);
+    timer_mod_ns(s->t2->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + F2_RATE * 256);
 }
 
 static timer_state *timer2_init(via_state *via, qemu_irq irq)
@@ -75,14 +75,14 @@ static timer_state *timer2_init(via_state *via, qemu_irq irq)
     timer_state *s = (timer_state *)g_malloc0(sizeof(timer_state));
     
     s->irq = irq;
-    s->timer = timer_new_ns(rtc_clock, timer2_interrupt, via);
+    s->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, timer2_interrupt, via);
     return s;
 }
 
 static void timer2_reset(via_state *s)
 {
     s->t2_latch = 1;
-    timer_mod_ns(s->t2->timer, qemu_clock_get_ns(rtc_clock) + F2_RATE);
+    timer_mod_ns(s->t2->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL));
 }
 
 static void via_set_reg_vBufA(via_state *s, uint8_t val)
