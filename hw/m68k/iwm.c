@@ -156,6 +156,9 @@ static uint32_t iwm_readb(void *opaque, hwaddr offset)
     if (s->lines[Q6] && (offset >> 1 == Q7) && !s->lines[LSTRB]) {
         cmd_handr(s);
     }
+    if ((offset % 2) && (offset >> 1 == LSTRB)) {
+        cmd_handw(s);
+    }
     if (s->lines[Q6] && !(s->lines[Q7] & ~HIGHBIT_MASK)) {
         qemu_log("iwm: read status_reg: %x\n", s->status_reg[iwm_get_drive(s)]);
         return (s->lines[offset >> 1] & HIGHBIT_MASK) |
