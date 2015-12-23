@@ -183,7 +183,7 @@ static void via_set_reg_vT2C(via_state *s, uint8_t val) {
 static void via_set_reg_vT2CH(via_state *s, uint8_t val) {
     qemu_log("via: ACR T2 mode: %x\n", !!(s->regs[vACR] & 0x20));
     s->regs[vT2CH] = val;
-    via_set_reg_vIFR(s, s->regs[vIFR] & 0xdf);
+    via_set_reg_vIFR(s, 0x20);
     qemu_log("via: vT2CH set to 0x%x\n", s->regs[vT2CH]);
     timer2_reset(s);
 }
@@ -229,7 +229,7 @@ uint8_t via_get_reg(via_state *s, uint8_t offset)
     if (offset == vSR) {
         via_set_reg_vIFR(s, 0x04);
     } else if (offset == vT2C) {
-        via_set_reg_vIFR(s, 0x10);
+        via_set_reg_vIFR(s, 0x20);
     }
 
     return s->regs[offset];
