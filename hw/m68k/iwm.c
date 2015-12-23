@@ -91,9 +91,8 @@ static void cmd_handw(iwm_state *s)
     cmd = (cmd << 1) | (s->lines[CA0] & LOWBIT_MASK);
     cmd = (cmd << 1) | ((sel & REGA_SEL_MASK) >> SELBIT);
     if ((cmd & ~CMDW_MASK) == 0x00) {
-        reg[cmd] &= ~LOWBIT_MASK;
-        reg[cmd] |= (s->lines[CA2] >> LOWBIT) & LOWBIT_MASK;
-        qemu_log("iwm: write %s register\n", iwm_regs[cmd]);
+        reg[cmd] = (s->lines[CA2] >> LOWBIT) & LOWBIT_MASK;
+        qemu_log("iwm: set %s register to %x\n", iwm_regs[cmd], reg[cmd]);
     } else {
         qemu_log("iwm: write error: unknown command 0x%x\n", cmd);
     }
