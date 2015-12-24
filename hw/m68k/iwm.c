@@ -10,7 +10,6 @@
 #define HIGHBIT_MASK (1 << HIGHBIT)
 #define LOWBIT 0
 #define LOWBIT_MASK (1 << LOWBIT)
-#define CMDW_MASK 0x06
 #define MODE_RBITS_MASK 0xE0
 
 enum
@@ -47,7 +46,7 @@ enum
 };
 
 const char *iwm_regs[IWM_REGS] = {"DIRTN", "CSTIN", "STEP", "WRTPRT", "MOTORON",
-                                  "TKO", "EJECT", "TACH", "RDDATA0", "RDDATA1",
+                                  "TK0", "EJECT", "TACH", "RDDATA0", "RDDATA1",
                                   "---", "---", "SIDES", "---", "---", "DRVIN"};
 
 enum
@@ -84,17 +83,43 @@ static uint32_t iwm_get_drive(iwm_state *s)
 
 static void cmd_handw(iwm_state *s)
 {
-    uint8_t sel = via_get_reg(s->via, vBufA);
+    uint8_t sel = (via_get_reg(s->via, vBufA) & REGA_SEL_MASK) >> SELBIT;
     uint8_t cmd = 0;
+    uint8_t value = 0;
     uint8_t *reg = s->regs[iwm_get_drive(s)];
     cmd |= s->lines[CA1] & LOWBIT_MASK;
     cmd = (cmd << 1) | (s->lines[CA0] & LOWBIT_MASK);
-    cmd = (cmd << 1) | ((sel & REGA_SEL_MASK) >> SELBIT);
-    if ((cmd & ~CMDW_MASK) == 0x00) {
-        reg[cmd] = (s->lines[CA2] >> LOWBIT) & LOWBIT_MASK;
-        qemu_log("iwm: set %s register to %x\n", iwm_regs[cmd], reg[cmd]);
-    } else {
-        qemu_log("iwm: write error: unknown command 0x%x\n", cmd);
+    cmd = (cmd << 1) | sel;
+    cmd = (cmd << 1) | (s->lines[CA2] & LOWBIT_MASK);
+    /* Commands description is taken from Neil Parker's
+       Controlling the 3.5 Drive Hardware on the Apple IIGS */
+    switch (cmd) {
+    case 0:
+    case 1:
+        value = cmd & LOWBIT_MASK;
+        qemu_log("iwm: set DIRTN register to %x\n", value);
+        reg[DIRTN] = value;
+        break;
+    case 3:
+        qemu_log("iwm: reset disk-switched flag\n");
+        break;
+    case 4:
+        /* TODO: support switching STEP register while stepping */
+        qemu_log("iwm: step one track in the current direction\n");
+        break;
+    case 8:
+    case 9:
+        value = cmd & LOWBIT_MASK;
+        qemu_log("iwm: set MOTORON register to %x\n", value);
+        reg[MOTORON] = value;
+        break;
+    case 13:
+        /* TODO: support ejecting */
+        qemu_log("iwm: eject the disk\n");
+        break;
+    default:
+        qemu_log("iwm: unknown command 0x%x\n", cmd);
+        break;
     }
 }
 
@@ -112,7 +137,7 @@ static void cmd_handr(iwm_state *s)
     } else {
         s->lines[Q7] &= ~HIGHBIT_MASK;
         s->lines[Q7] |= (reg[cmd] << HIGHBIT) & HIGHBIT_MASK;
-        qemu_log("iwm: read %s register\n", iwm_regs[cmd]);
+        qemu_log("iwm: read %s register, value = %d\n", iwm_regs[cmd], reg[cmd]);
     }
 }
 
@@ -205,6 +230,9 @@ static void iwm_reset(void *opaque)
     s->regs[EXTERNAL][MOTORON] = 1;
     s->regs[INTERNAL][WRTPRT]  = 1;
     s->regs[EXTERNAL][WRTPRT]  = 1;
+    /* Disk head is alway not stepping */
+    s->regs[INTERNAL][STEP]  = 1;
+    s->regs[EXTERNAL][STEP]  = 1;
 }
 
 void iwm_init(MemoryRegion *sysmem, uint32_t base, M68kCPU *cpu, via_state *via)
