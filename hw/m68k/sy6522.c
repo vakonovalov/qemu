@@ -18,7 +18,8 @@
 #include "mac_keyboard.h"
 
 #define REGA_OVERLAY_MASK (1 << 4)
-#define F2_RATE 1000
+/* In Macintosh Plus 1ms is 780 VIA clock cycles */
+#define F2_RATE 1282
 
 typedef struct timer_state {
     qemu_irq irq;
@@ -307,7 +308,7 @@ static void vbi_interrupt(void * opaque)
 {
     timer_state *vbi = opaque;
     
-    timer_mod_ns(vbi->timer, qemu_clock_get_ns(rtc_clock) + 16625800);
+    timer_mod_ns(vbi->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + 16625800);
     qemu_irq_raise(vbi->irq);
 }
 
@@ -316,8 +317,8 @@ static timer_state *vbi_init(qemu_irq irq)
     timer_state *s = (timer_state *)g_malloc0(sizeof(timer_state));
     
     s->irq = irq;
-    s->timer = timer_new_ns(rtc_clock, vbi_interrupt, s);
-    timer_mod_ns(s->timer, qemu_clock_get_ns(rtc_clock) + 16625800);
+    s->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, vbi_interrupt, s);
+    timer_mod_ns(s->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + 16625800);
     return s;
 }
 
