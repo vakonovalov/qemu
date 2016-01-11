@@ -35,7 +35,7 @@ enum
     STEP     = 2,
     WRTPRT   = 3,
     MOTORON  = 4,
-    TKO      = 5,
+    TK0      = 5,
     EIECT    = 6,
     TACH     = 7,
     RDDATAO  = 8,
@@ -70,6 +70,7 @@ typedef struct {
     uint8_t mode_reg[DRIVE];
     uint8_t data_reg[DRIVE];
     uint8_t handshake_reg[DRIVE];
+    QEMUTimer *timerTACH;
 } iwm_state;
 
 static uint32_t iwm_get_drive(iwm_state *s)
@@ -79,6 +80,15 @@ static uint32_t iwm_get_drive(iwm_state *s)
     } else {
         return INTERNAL;
     }
+}
+
+static void iwm_tach_tick(void *opaque)
+{
+    iwm_state *s = opaque;
+    timer_mod_ns(s->timerTACH,
+                 qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + 1000000000LL / 120);
+    s->regs[INTERNAL][TACH] ^= 1;
+    s->regs[EXTERNAL][TACH] ^= 1;
 }
 
 static void cmd_handw(iwm_state *s)
@@ -247,6 +257,9 @@ void iwm_init(MemoryRegion *sysmem, uint32_t base, M68kCPU *cpu, via_state *via)
 
     s->cpu = cpu;
     s->via = via;
+
+    s->timerTACH = timer_new_ns(QEMU_CLOCK_VIRTUAL, iwm_tach_tick, s);
+    timer_mod_ns(s->timerTACH, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL));
 
     iwm_reset(s);
 }
