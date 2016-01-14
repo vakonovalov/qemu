@@ -11,6 +11,8 @@
 #define LOWBIT 0
 #define LOWBIT_MASK (1 << LOWBIT)
 #define MODE_RBITS_MASK 0xE0
+/* 60 pulses per turn. 10 turns per second */
+#define TACH_PULSE (1000000000LL / 1200)
 
 enum
 {
@@ -38,7 +40,7 @@ enum
     TK0      = 5,
     EIECT    = 6,
     TACH     = 7,
-    RDDATAO  = 8,
+    RDDATA0  = 8,
     RDDATA1  = 9,
     SIDES    = 12,
     DRVIN    = 15,
@@ -86,7 +88,7 @@ static void iwm_tach_tick(void *opaque)
 {
     iwm_state *s = opaque;
     timer_mod_ns(s->timerTACH,
-                 qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + 1000000000LL / 120);
+                 qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + TACH_PULSE);
     s->regs[INTERNAL][TACH] ^= 1;
     s->regs[EXTERNAL][TACH] ^= 1;
 }
