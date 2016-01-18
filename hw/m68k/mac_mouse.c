@@ -43,7 +43,6 @@ static void mouse_event(DeviceState *dev, QemuConsole *src,
             if (abs(s->mouse_dx) > MOUSE_LIMIT-1) {
                 timer_mod_ns(s->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + FREQUENCY);                
             }
-
         } else if (evt->rel->axis == INPUT_AXIS_Y) {
             if (evt->rel->value == 0) break;
             printf("Check Y  ");
@@ -70,16 +69,18 @@ static void mouse_event(DeviceState *dev, QemuConsole *src,
         /* keep gcc happy */
         break;
     }
-    //printf("Mouse: x = %d, y = %d, button = %d\n", s->mouse_dx, s->mouse_dy, s->mouse_button);
 }
 
 static void timer_callback(void *opaque)
 {
     mouse_state *s = opaque;
     uint8_t dcd;
-//    static bool flag = 0;
-/*
-    if ((abs(s->mouse_dx) > MOUSE_LIMIT) && (abs(s->mouse_dy) > MOUSE_LIMIT)) {
+
+//Experimantal diagonal implementation. 
+/*  
+    static bool flag = 0;
+
+    if ((abs(s->mouse_dx) > MOUSE_LIMIT-1) && (abs(s->mouse_dy) > MOUSE_LIMIT-1)) {
         if (!flag) {
             flag = 1;
             dcd = z8530_get_reg(s->z8530, 0, 0);
@@ -116,7 +117,6 @@ static void timer_callback(void *opaque)
     if (abs(s->mouse_dx) > MOUSE_LIMIT-1) {
         dcd = z8530_get_reg(s->z8530, 0, 0);
         z8530_set_reg(s->z8530, 0, 0, dcd ^ 0x08);
- //       printf("DCD = %x", dcd);
         if (s->mouse_dx > 0) {
             if ((dcd & 0x08) == 0) {
                 qemu_log("Variant1\n");
@@ -148,8 +148,9 @@ static void timer_callback(void *opaque)
         mouse_interrupt(s->z8530, 1);
     }
 
-    if ((abs(s->mouse_dx) > MOUSE_LIMIT-1) || (abs(s->mouse_dy) > MOUSE_LIMIT-1))
+    if ((abs(s->mouse_dx) > MOUSE_LIMIT-1) || (abs(s->mouse_dy) > MOUSE_LIMIT-1)) {
         timer_mod_ns(s->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + FREQUENCY);
+    }
 }
 
 static void mouse_reset(void *opaque)

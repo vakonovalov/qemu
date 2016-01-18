@@ -144,17 +144,7 @@ static void z8530_reset(void *opaque);
 
 static int z8530_update_irq_chn(ChannelState *s)
 {
-/*    if ((((s->wregs[W_INTR] & INTR_TXINT) && (s->txint == 1)) ||
-         // tx ints enabled, pending
-         ((((s->wregs[W_INTR] & INTR_RXMODEMSK) == INTR_RXINT1ST) ||
-           ((s->wregs[W_INTR] & INTR_RXMODEMSK) == INTR_RXINTALL)) &&
-          s->rxint == 1) || // rx ints enabled, pending
-         ((s->wregs[W_EXTINT] & EXTINT_BRKINT) &&
-          (s->rregs[R_STATUS] & STATUS_BRK)))) { // break int e&p
-        return 1;
-    } */
     return 0;
-
 }
 
 static void z8530_update_irq(ChannelState *s)
@@ -189,7 +179,6 @@ static void z8530_mem_write(void *opaque, hwaddr addr,
         newreg = 0;
         switch (s->reg) {
             case W_CMD:
-
                 newreg = val & CMD_PTR_MASK;
                 val &= CMD_CMD_MASK;
                 switch (val) {
@@ -197,21 +186,11 @@ static void z8530_mem_write(void *opaque, hwaddr addr,
                         newreg |= CMD_HI;
                         break;
                     case CMD_CLR_TXINT:
-        //                clr_txint(s);
                         break;
                     case CMD_CLR_IUS:
-        /*                if (s->rxint_under_svc) {
-                            s->rxint_under_svc = 0;
-                            if (s->txint) {
-                                set_txint(s);
-                            }
-                        } else if (s->txint_under_svc) {
-                            s->txint_under_svc = 0;
-                        }*/
                         z8530_update_irq(s);
                         break;
                     case 0x10:
-                        //printf("Flag unset\n");
                         set_hw_irq(state->cpu, state->int_st, 0, 0x68 >> 2);
                         break;
                     default:
@@ -227,13 +206,11 @@ static void z8530_mem_write(void *opaque, hwaddr addr,
             case W_TXCTRL1:
             case W_TXCTRL2:
                 s->wregs[s->reg] = val;
-    //            z8530_update_parameters(s);
                 break;
             case W_BRGLO:
             case W_BRGHI:
                 s->wregs[s->reg] = val;
                 s->rregs[s->reg] = val;
-     //           z8530_update_parameters(s);
                 break;
             case W_MINTR:
                 switch (val & MINTR_RST_MASK) {
@@ -260,19 +237,6 @@ static void z8530_mem_write(void *opaque, hwaddr addr,
             s->reg = 0;
         break;
     case SERIAL_DATA:
-/*        trace_z8530_mem_writeb_data(CHN_C(s), val);
-        s->tx = val;
-        if (s->wregs[W_TXCTRL2] & TXCTRL2_TXEN) { // tx enabled
-            if (s->chr)
-                qemu_chr_fe_write(s->chr, &s->tx, 1);
-            else if (s->type == kbd && !s->disabled) {
-                handle_kbd_command(s, val);
-            }
-        }
-        s->rregs[R_STATUS] |= STATUS_TXEMPTY; // Tx buffer empty
-        s->rregs[R_SPEC] |= SPEC_ALLSENT; // All sent
-        set_txint(s);
-*/
         break;
     }
 }
@@ -286,10 +250,6 @@ static uint64_t z8530_mem_read(void *opaque, hwaddr addr,
     uint32_t ret = 0;
 
     offset = addr - 0x1FFFF8;
-
-    //if (offset != 0x0 && offset != 0x2 && offset != 0x4 && offset != 0x6) {
-   //     hw_error("Bad Z8530 read offset 0x%x", offset);
-    //}
 
     if (offset & 0x2) {
         s = &state->chn[chn_a];
@@ -306,11 +266,6 @@ static uint64_t z8530_mem_read(void *opaque, hwaddr addr,
 
     case SERIAL_DATA:
         s->rregs[R_STATUS] &= ~STATUS_RXAV;
-//      clr_rxint(s);
-//      if (s->type == mouse)
-//          ret = get_queue(s);
-//      else
-//          ret = s->rx;
         break;
     }
     return ret;
@@ -338,7 +293,6 @@ void mouse_interrupt(void * opaque, uint8_t chn_id)
             s->chn[0].rregs[R_IVEC] = 0x02;
             s->chn[1].rregs[R_IVEC] = 0x02;            
         }
-        //printf("I am here %x\n", s->chn[0].rregs[R_IVEC]);
         set_hw_irq(s->cpu, s->int_st, 1, 0x68 >> 2);
     } else {
         set_hw_irq(s->cpu, s->int_st, 0, 0x68 >> 2);
@@ -360,17 +314,6 @@ static void z8530_reset_chn(ChannelState *s)
     s->wregs[W_MISC2] = MISC2_PLLDIS; // PLL disabled
     s->wregs[W_EXTINT] = EXTINT_DCD | EXTINT_SYNCINT | EXTINT_CTSINT |
         EXTINT_TXUNDRN | EXTINT_BRKINT; // Enable most interrupts
-/*    if (s->disabled)
-        s->rregs[R_STATUS] = STATUS_TXEMPTY | STATUS_DCD | STATUS_SYNC |
-            STATUS_CTS | STATUS_TXUNDRN;
-    else
-        s->rregs[R_STATUS] = STATUS_TXEMPTY | STATUS_TXUNDRN;
-    s->rregs[R_SPEC] = SPEC_BITS8 | SPEC_ALLSENT;
-
-    s->rx = s->tx = 0;
-    s->rxint = s->txint = 0;
-    s->rxint_under_svc = s->txint_under_svc = 0;
-*/
 }
 
 static void z8530_reset(void *opaque)
@@ -387,7 +330,7 @@ static const MemoryRegionOps z8530_mem_ops = {
     .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
-void *z8530_init(hwaddr base, via_state *via, int_state *int_st, M68kCPU *cpu)//, qemu_irq irqA, qemu_irq irqB)
+void *z8530_init(hwaddr base, via_state *via, int_state *int_st, M68kCPU *cpu)
 {
     Z8530State *s;
     unsigned int i;
@@ -395,17 +338,14 @@ void *z8530_init(hwaddr base, via_state *via, int_state *int_st, M68kCPU *cpu)//
     s = (Z8530State *)g_malloc0(sizeof(Z8530State));
 
     s->cpu = cpu;
-//    s->chn[0].disabled = s->disabled;
-//    s->chn[1].disabled = s->disabled;
+
     for (i = 0; i < 2; i++) {
         s->chn[i].chn = 1 - i;
-//        s->chn[i].clock = s->frequency / 2;
     }
     s->chn[0].otherchn = &s->chn[1];
     s->chn[1].otherchn = &s->chn[0];
     s->int_st = int_st;
 
-//    s->mouse_int = qemu_allocate_irq(mouse_interrupt, s, 0); 
     mouse_init(s, via);
 
     memory_region_init_io(&s->iomem, NULL, &z8530_mem_ops, s, "z8530", 0x400000);

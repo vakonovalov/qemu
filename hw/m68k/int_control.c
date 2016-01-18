@@ -17,7 +17,6 @@ void set_hw_irq(void *cpu, void *int_st, bool bit, uint8_t vector)
     qemu_log("level %x, vector %x\n", s->level, s->vector);
     if (s->level == 3) {
         m68k_set_irq_level(cpu, 2, 0x68 >> 2);
-        //m68k_set_irq_level(cpu, stored_level, vector);
     } else {
         m68k_set_irq_level(cpu, s->level, s->vector);
     }
