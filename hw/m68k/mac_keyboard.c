@@ -56,7 +56,6 @@ static void keyboard_event(DeviceState *dev, QemuConsole *src,
                                              scancodes);
     timer_del(s->timer);
     if (s->cmd == 0x10 || s->cmd == 0x14) {
-        timer_del(s->timer);
         if (count == 3) {
             put_value_vSR(s, NullKeycode);
         } else {

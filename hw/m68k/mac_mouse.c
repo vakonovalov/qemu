@@ -7,7 +7,7 @@
 #include "mac_mouse.h"
 
 #define FREQUENCY 16625800LL
-#define MOUSE_LIMIT 1
+#define MOUSE_LIMIT 3
 
 typedef struct mouse_state {
     qemu_irq irq;

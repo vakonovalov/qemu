@@ -34,7 +34,7 @@ typedef struct Z8530State {
     struct ChannelState chn[2];
     MemoryRegion iomem;
     M68kCPU *cpu;
-//    qemu_irq mouse_int;
+    int_state *int_st;
 } Z8530State;
 
 #define SERIAL_CTRL 0
@@ -212,7 +212,7 @@ static void z8530_mem_write(void *opaque, hwaddr addr,
                         break;
                     case 0x10:
                         //printf("Flag unset\n");
-                        set_hw_irq(state->cpu, 0, 0x68 >> 2);
+                        set_hw_irq(state->cpu, state->int_st, 0, 0x68 >> 2);
                         break;
                     default:
                         break;
@@ -339,9 +339,9 @@ void mouse_interrupt(void * opaque, uint8_t chn_id)
             s->chn[1].rregs[R_IVEC] = 0x02;            
         }
         //printf("I am here %x\n", s->chn[0].rregs[R_IVEC]);
-        set_hw_irq(s->cpu, 1, 0x68 >> 2);
+        set_hw_irq(s->cpu, s->int_st, 1, 0x68 >> 2);
     } else {
-        set_hw_irq(s->cpu, 0, 0x68 >> 2);
+        set_hw_irq(s->cpu, s->int_st, 0, 0x68 >> 2);
     }
 }
 
@@ -387,7 +387,7 @@ static const MemoryRegionOps z8530_mem_ops = {
     .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
-void *z8530_init(hwaddr base, via_state *via, M68kCPU *cpu)//, qemu_irq irqA, qemu_irq irqB)
+void *z8530_init(hwaddr base, via_state *via, int_state *int_st, M68kCPU *cpu)//, qemu_irq irqA, qemu_irq irqB)
 {
     Z8530State *s;
     unsigned int i;
@@ -403,6 +403,7 @@ void *z8530_init(hwaddr base, via_state *via, M68kCPU *cpu)//, qemu_irq irqA, qe
     }
     s->chn[0].otherchn = &s->chn[1];
     s->chn[1].otherchn = &s->chn[0];
+    s->int_st = int_st;
 
 //    s->mouse_int = qemu_allocate_irq(mouse_interrupt, s, 0); 
     mouse_init(s, via);
