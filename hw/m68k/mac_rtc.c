@@ -104,7 +104,7 @@ void rtc_param_reset(rtc_state *rtc)
 static void rtc_interrupt(void * opaque)
 {
     rtc_state *rtc = opaque;
-    timer_mod_ns(rtc->timer, qemu_clock_get_ns(rtc_clock) + get_ticks_per_sec());
+    timer_mod_ns(rtc->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + get_ticks_per_sec());
 
     if (rtc->buf_RAM[0] == 0xFF) {
         if (rtc->buf_RAM[1] == 0xFF) {
@@ -122,7 +122,7 @@ static void rtc_interrupt(void * opaque)
 
 static void rtc_reset(rtc_state *rtc)
 {
-    uint64_t now = qemu_clock_get_ns(rtc_clock) / get_ticks_per_sec()
+    uint64_t now = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) / get_ticks_per_sec()
                  + HOST_TO_MAC_RTC;
     uint8_t i;
     for (i = 0; i < 4; ++i) {
@@ -136,7 +136,7 @@ rtc_state *rtc_init(qemu_irq irq)
 {
     rtc_state *s = (rtc_state *)g_malloc0(sizeof(rtc_state));
     s->irq = irq;
-    s->timer = timer_new_ns(rtc_clock, rtc_interrupt, s);
+    s->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, rtc_interrupt, s);
     rtc_reset(s);
 
     return s;
