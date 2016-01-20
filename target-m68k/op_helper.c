@@ -198,6 +198,51 @@ void HELPER(raise_exception)(CPUM68KState *env, uint32_t tt)
     raise_exception(env, tt);
 }
 
+void HELPER(read_disk)(CPUM68KState *env, uint32_t tt)
+{
+    FILE * disk;
+    int ioReqCount = cpu_ldl_kernel(env, env->aregs[0] + 36);
+    int ioActCount = 0;
+    int ioBuffer = cpu_ldl_kernel(env, env->aregs[0] + 32);
+    char buffer[1];
+    char file_name[] = "2.0_System Disk.dsk";
+
+    printf("\n%s\n", "HELPER");
+    printf("dest_old: %x\n", env->cc_dest);
+    env->cc_dest = 0;
+    printf("dest_new: %x\n", env->cc_dest);
+
+    printf("a[0] = %x\n", env->aregs[0]);
+    printf("ioCompletion = %x\n",  cpu_ldl_kernel(env, env->aregs[0] + 12));
+    printf("ioResult     = %x\n", cpu_lduw_kernel(env, env->aregs[0] + 16));
+    printf("ioVRefNum    = %x\n", cpu_lduw_kernel(env, env->aregs[0] + 22));
+    printf("ioRefNum     = %x\n", cpu_lduw_kernel(env, env->aregs[0] + 24));
+    printf("ioBuffer     = %x\n",  cpu_ldl_kernel(env, env->aregs[0] + 32));
+    printf("ioReqCount   = %x\n",  cpu_ldl_kernel(env, env->aregs[0] + 36));
+    printf("ioActCount   = %x\n",  cpu_ldl_kernel(env, env->aregs[0] + 40));
+    printf("ioPosMode    = %x\n", cpu_lduw_kernel(env, env->aregs[0] + 44));
+    printf("ioPosOffset  = %x\n",  cpu_ldl_kernel(env, env->aregs[0] + 46));
+
+    if (cpu_lduw_kernel(env, env->aregs[0] + 24) != 0xfffb) {
+        raise_exception(env, tt);
+    } else {
+        if ((disk = fopen (file_name, "r")) == NULL) {
+            qemu_log("Error open disk file %s\n", file_name);
+        } else {
+            while ((ioActCount != ioReqCount) & !feof(disk)) {
+                if(!fread(buffer, 1, 1, disk)) {
+                    qemu_log("Error read byte from file %s\n", file_name);
+                }
+                cpu_stb_kernel(env, ioBuffer + ioActCount, buffer[0] & 0xff);
+                ioActCount++;
+            }
+            fclose(disk);
+            cpu_stl_kernel(env, env->aregs[0] + 40, ioActCount);
+            env->dregs[0] = 0;
+        }
+    }
+}
+
 void HELPER(divu)(CPUM68KState *env, uint32_t word)
 {
     uint32_t num;
