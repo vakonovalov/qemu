@@ -178,7 +178,6 @@ bool m68k_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
            at this point.  Current emulated hardware doesn't rely on
            this, so we provide/save the vector when the interrupt is
            first signalled.  */
-        qemu_log("after_m68k_cpu_exec_interrupt: Int level = %d, vector = %x\n", env->pending_level, env->pending_vector);
         cs->exception_index = env->pending_vector;
         do_interrupt_m68k_hardirq(env);
         return true;
