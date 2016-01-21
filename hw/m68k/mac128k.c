@@ -16,6 +16,7 @@
 #include "sysemu/qtest.h"
 #include "ui/console.h"
 #include "ui/pixel_ops.h"
+#include "mac_int_control.h"
 
 #define ROM_LOAD_ADDR 0x400000
 #define MAX_ROM_SIZE  0x20000
@@ -99,6 +100,7 @@ static void mac128k_init(MachineState *machine)
     MemoryRegion *ram = g_new(MemoryRegion, 1);
     MemoryRegion *rom = g_new(MemoryRegion, 1);
     via_state *via;
+    int_state *int_st;
     mac_display *display = (mac_display *)g_malloc0(sizeof(mac_display));
 
     if (!cpu_model) {
@@ -148,8 +150,10 @@ static void mac128k_init(MachineState *machine)
     memory_region_add_subregion(address_space_mem, ROM_LOAD_ADDR, rom);
     memory_region_set_readonly(rom, true);
 
-    via = sy6522_init(rom, ram, VIA_BASE_ADDR, cpu);
+    int_st = int_init();
+    via = sy6522_init(rom, ram, VIA_BASE_ADDR, int_st, cpu);
     iwm_init(address_space_mem, IWM_BASE_ADDR, cpu, via);
+    z8530_init(0x800000, via, int_st, cpu);
 
     /* Display */
     display->con = graphic_console_init(NULL, 0, &mac_display_ops, display);
