@@ -18,15 +18,15 @@ typedef struct mouse_state {
     uint8_t mouse_button;
 } mouse_state;
 
-static void mouse_event(DeviceState *dev, QemuConsole *src, InputEvent *evt);
+static void mac_mouse_event(DeviceState *dev, QemuConsole *src, InputEvent *evt);
 
 static QemuInputHandler mouse_handler = {
     .name  = "QEMU Macintosh 128K mouse",
     .mask  = INPUT_EVENT_MASK_BTN | INPUT_EVENT_MASK_REL,
-    .event = mouse_event,
+    .event = mac_mouse_event,
 };
 
-static void mouse_event(DeviceState *dev, QemuConsole *src,
+static void mac_mouse_event(DeviceState *dev, QemuConsole *src,
                                InputEvent *evt)
 {
     mouse_state *s = (mouse_state *)dev;
