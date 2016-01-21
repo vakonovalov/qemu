@@ -5,10 +5,9 @@
 #include "ui/input.h"
 #include "exec/address-spaces.h"
 #include "mac128k.h"
-//#include "sy6522.h"
 #include "mac_mouse.h"
 #include "z8530.h"
-#include "int_control.h"
+#include "mac_int_control.h"
 
 typedef enum {
     chn_a, chn_b,

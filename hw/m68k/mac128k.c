@@ -16,7 +16,7 @@
 #include "sysemu/qtest.h"
 #include "ui/console.h"
 #include "ui/pixel_ops.h"
-#include "int_control.h"
+#include "mac_int_control.h"
 
 #define ROM_LOAD_ADDR 0x400000
 #define MAX_ROM_SIZE  0x20000

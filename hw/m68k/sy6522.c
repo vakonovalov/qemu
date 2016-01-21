@@ -16,7 +16,7 @@
 #include "sy6522.h"
 #include "mac_rtc.h"
 #include "mac_keyboard.h"
-#include "int_control.h"
+#include "mac_int_control.h"
 
 #define REGA_OVERLAY_MASK (1 << 4)
 /* In Macintosh Plus 1ms is 780 VIA clock cycles */

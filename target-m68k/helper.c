@@ -418,7 +418,7 @@ void m68k_set_irq_level(M68kCPU *cpu, int level, uint8_t vector)
 {
     CPUState *cs = CPU(cpu);
     CPUM68KState *env = &cpu->env;
-    qemu_log("Int level = %d, vector = %x\n", level, vector);
+
     env->pending_level = level;
     env->pending_vector = vector;
     if (level) {
