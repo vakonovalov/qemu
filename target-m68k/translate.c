@@ -1060,7 +1060,6 @@ DISAS_INSN(undef_mac)
 
 DISAS_INSN(mac_read)
 {
-    printf("%s\n", "DISAS_INSN");
     gen_helper_read_disk(cpu_env, tcg_const_i32(1));
 }
 
@@ -4344,6 +4343,7 @@ void register_m68k_insns (CPUM68KState *env)
     INSN(mac_read,  a002, ffff, M68000);
     INSN(from_mac,  a180, f9b0, CF_EMAC);
     INSN(move_mac,  a110, f9fc, CF_EMAC);
+    INSN(mac_read,  a402, ffff, M68000);
     INSN(from_macsr,a980, f9f0, CF_EMAC);
     INSN(from_mask, ad80, fff0, CF_EMAC);
     INSN(from_mext, ab80, fbf0, CF_EMAC);

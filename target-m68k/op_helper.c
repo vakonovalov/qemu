@@ -189,6 +189,11 @@ static void raise_exception(CPUM68KState *env, int tt)
 {
     CPUState *cs = CPU(m68k_env_get_cpu(env));
 
+    if (
+        (cpu_lduw_kernel(env, env->pc) != 0x4e73) /* rte */
+        )
+        printf("0x%x val:%x\n", env->pc, cpu_lduw_kernel(env, env->pc));
+
     cs->exception_index = tt;
     cpu_loop_exit(cs);
 }
@@ -198,48 +203,78 @@ void HELPER(raise_exception)(CPUM68KState *env, uint32_t tt)
     raise_exception(env, tt);
 }
 
+enum ioParams {
+    ioCompletion = 12,
+    ioResult     = 16,
+    ioVRefNum    = 22,
+    ioRefNum     = 24,
+    ioBuffer     = 32,
+    ioReqCount   = 36,
+    ioActCount   = 40,
+    ioPosMode    = 44,
+    ioPosOffset  = 46
+};
+
+enum resultCodes {
+    noErr    = -0,
+    eofErr   = -39,
+    extFSErr = -58,
+    fnOpnErr = -38,
+    ioErr    = -36,
+    paramErr = -50,
+    rfNumErr = -51
+};
+
 void HELPER(read_disk)(CPUM68KState *env, uint32_t tt)
 {
     FILE * disk;
-    int ioReqCount = cpu_ldl_kernel(env, env->aregs[0] + 36);
-    int ioActCount = 0;
-    int ioBuffer = cpu_ldl_kernel(env, env->aregs[0] + 32);
+    int ReqCount  = cpu_ldl_kernel(env, env->aregs[0] + ioReqCount);
+    int ActCount  = 0;
+    //int PosOffset = cpu_ldl_kernel(env, env->aregs[0] + ioPosOffset);
+    int Buffer    = cpu_ldl_kernel(env, env->aregs[0] + ioBuffer);
+    int PosOffset = cpu_ldl_kernel(env, env->aregs[0] + ioPosOffset);
+    int Result = noErr;
     char buffer[1];
     char file_name[] = "2.0_System Disk.dsk";
 
-    printf("\n%s\n", "HELPER");
-    printf("dest_old: %x\n", env->cc_dest);
     env->cc_dest = 0;
-    printf("dest_new: %x\n", env->cc_dest);
 
     printf("a[0] = %x\n", env->aregs[0]);
-    printf("ioCompletion = %x\n",  cpu_ldl_kernel(env, env->aregs[0] + 12));
-    printf("ioResult     = %x\n", cpu_lduw_kernel(env, env->aregs[0] + 16));
-    printf("ioVRefNum    = %x\n", cpu_lduw_kernel(env, env->aregs[0] + 22));
-    printf("ioRefNum     = %x\n", cpu_lduw_kernel(env, env->aregs[0] + 24));
-    printf("ioBuffer     = %x\n",  cpu_ldl_kernel(env, env->aregs[0] + 32));
-    printf("ioReqCount   = %x\n",  cpu_ldl_kernel(env, env->aregs[0] + 36));
-    printf("ioActCount   = %x\n",  cpu_ldl_kernel(env, env->aregs[0] + 40));
-    printf("ioPosMode    = %x\n", cpu_lduw_kernel(env, env->aregs[0] + 44));
-    printf("ioPosOffset  = %x\n",  cpu_ldl_kernel(env, env->aregs[0] + 46));
+    printf("ioCompletion = %x\n",  cpu_ldl_kernel(env, env->aregs[0] + ioCompletion));
+    printf("ioResult     = %x\n", cpu_lduw_kernel(env, env->aregs[0] + ioResult));
+    printf("ioVRefNum    = %x\n", cpu_lduw_kernel(env, env->aregs[0] + ioVRefNum));
+    printf("ioRefNum     = %x\n", cpu_lduw_kernel(env, env->aregs[0] + ioRefNum));
+    printf("ioBuffer     = %x\n",  cpu_ldl_kernel(env, env->aregs[0] + ioBuffer));
+    printf("ioReqCount   = %x\n",  cpu_ldl_kernel(env, env->aregs[0] + ioReqCount));
+    printf("ioActCount   = %x\n",  cpu_ldl_kernel(env, env->aregs[0] + ioActCount));
+    printf("ioPosMode    = %x\n", cpu_lduw_kernel(env, env->aregs[0] + ioPosMode));
+    printf("ioPosOffset  = %x\n",  cpu_ldl_kernel(env, env->aregs[0] + ioPosOffset));
 
-    if (cpu_lduw_kernel(env, env->aregs[0] + 24) != 0xfffb) {
+    if (cpu_lduw_kernel(env, env->aregs[0] + ioRefNum) != 0xfffb) {
         raise_exception(env, tt);
     } else {
         if ((disk = fopen (file_name, "r")) == NULL) {
             qemu_log("Error open disk file %s\n", file_name);
+            Result = fnOpnErr;
         } else {
-            while ((ioActCount != ioReqCount) & !feof(disk)) {
-                if(!fread(buffer, 1, 1, disk)) {
+            fseek(disk , PosOffset, SEEK_SET);
+            while (!feof(disk) & (ActCount != ReqCount)) {
+                if (!fread(buffer, 1, 1, disk)) {
                     qemu_log("Error read byte from file %s\n", file_name);
+                    Result = eofErr;
+                } else {
+                    cpu_stb_kernel(env, Buffer + ActCount, buffer[0] & 0xff);
+                    ActCount++;
+                    printf("%x", buffer[0] & 0xff);
+                    qemu_log("%x", buffer[0] & 0xff);
                 }
-                cpu_stb_kernel(env, ioBuffer + ioActCount, buffer[0] & 0xff);
-                ioActCount++;
             }
             fclose(disk);
-            cpu_stl_kernel(env, env->aregs[0] + 40, ioActCount);
-            env->dregs[0] = 0;
         }
+        cpu_stl_kernel(env, env->aregs[0] + ioPosOffset, ActCount + PosOffset);
+        cpu_stl_kernel(env, env->aregs[0] + ioActCount,  ActCount);
+        cpu_stl_kernel(env, env->aregs[0] + ioResult,    Result);
+        env->dregs[0] = Result;
     }
 }
 
