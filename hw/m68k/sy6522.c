@@ -17,6 +17,7 @@
 #include "mac_rtc.h"
 #include "mac_keyboard.h"
 #include "mac_int_control.h"
+#include "mac_sound_generator.h"
 
 #define REGA_OVERLAY_MASK (1 << 4)
 /* In Macintosh Plus 1ms is 780 VIA clock cycles */
@@ -46,6 +47,8 @@ typedef struct via_state {
     /* keyboard */
     keyboard_state *keyboard;
     int_state *int_st;
+    /*sound generator*/
+    sound_generator_state *snd_st;
 } via_state;
 
 const char *via_regs[VIA_REGS] = {"vBufB", "---", "vDirB", "vDirA", "vT1C", 
@@ -114,6 +117,9 @@ static void via_set_reg_vBufA(via_state *s, uint8_t val)
         qemu_log("via: SEL bit set to %x\n", !!(val & REGA_SEL_MASK));
     }
 
+    /*bit 0-2 sound volume*/
+    mac_sound_generator_set_volume(s->snd_st, val & REGA_SNDVOL_MASK);
+
     /* TODO: other bits */
 
     s->regs[vBufA] = val;
@@ -140,6 +146,9 @@ static void via_set_reg_vBufB(via_state *s, uint8_t val)
     } else if ((val & REGB_RTCENB_MASK) && !(s->regs[vBufB] & REGB_RTCENB_MASK)) {
         rtc_param_reset(s->rtc);
     }
+
+    //7-bit - sound enable/disable
+    mac_sound_generator_set_enable(s->snd_st, !(val & REGB_SNDENB_MASK));
 
     /* TODO: other bits */
 
@@ -325,7 +334,7 @@ static timer_state *vbi_init(qemu_irq irq)
 }
 
 via_state *sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
-                 uint32_t base, int_state *int_st, M68kCPU *cpu)
+                 uint32_t base, int_state *int_st, sound_generator_state *snd_st, M68kCPU *cpu)
 {
     via_state *s;
     qemu_irq *pic;
@@ -349,6 +358,7 @@ via_state *sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
     s->t2 = timer2_init(s, pic[5]);
     s->keyboard = keyboard_init(s, pic[2]);
     s->int_st = int_st;
+    s->snd_st = snd_st;
 
     qemu_register_reset(sy6522_reset, s);
     sy6522_reset(s);
