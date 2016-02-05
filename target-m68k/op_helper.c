@@ -238,7 +238,7 @@ void HELPER(read_disk)(CPUM68KState *env, uint32_t tt)
     int Completion = cpu_ldl_kernel(env, env->aregs[0] + ioCompletion);
     int Result = noErr;
     char buffer[1];
-    char file_name[] = "2.0_System Disk.dsk";
+    char file_name[] = "2.0 System Disk.dsk";
 
     env->cc_dest = 0;
 
