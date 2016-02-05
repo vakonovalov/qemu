@@ -191,8 +191,10 @@ static void raise_exception(CPUM68KState *env, int tt)
 
     if (
         (cpu_lduw_kernel(env, env->pc) != 0x4e73) /* rte */
-        )
+        ) {
         printf("0x%x val:%x\n", env->pc, cpu_lduw_kernel(env, env->pc));
+        qemu_log("0x%x val:%x\n", env->pc, cpu_lduw_kernel(env, env->pc));
+    }
 
     cs->exception_index = tt;
     cpu_loop_exit(cs);
@@ -233,6 +235,7 @@ void HELPER(read_disk)(CPUM68KState *env, uint32_t tt)
     //int PosOffset = cpu_ldl_kernel(env, env->aregs[0] + ioPosOffset);
     int Buffer    = cpu_ldl_kernel(env, env->aregs[0] + ioBuffer);
     int PosOffset = cpu_ldl_kernel(env, env->aregs[0] + ioPosOffset);
+    int Completion = cpu_ldl_kernel(env, env->aregs[0] + ioCompletion);
     int Result = noErr;
     char buffer[1];
     char file_name[] = "2.0_System Disk.dsk";
@@ -251,6 +254,7 @@ void HELPER(read_disk)(CPUM68KState *env, uint32_t tt)
     printf("ioPosOffset  = %x\n",  cpu_ldl_kernel(env, env->aregs[0] + ioPosOffset));
 
     if (cpu_lduw_kernel(env, env->aregs[0] + ioRefNum) != 0xfffb) {
+        printf("dfgdfgdfg\n");
         raise_exception(env, tt);
     } else {
         if ((disk = fopen (file_name, "r")) == NULL) {
@@ -266,17 +270,41 @@ void HELPER(read_disk)(CPUM68KState *env, uint32_t tt)
                     cpu_stb_kernel(env, Buffer + ActCount, buffer[0] & 0xff);
                     ActCount++;
                     printf("%x", buffer[0] & 0xff);
-                    qemu_log("%x", buffer[0] & 0xff);
                 }
             }
+            printf("\n");
             fclose(disk);
         }
         cpu_stl_kernel(env, env->aregs[0] + ioPosOffset, ActCount + PosOffset);
         cpu_stl_kernel(env, env->aregs[0] + ioActCount,  ActCount);
         cpu_stl_kernel(env, env->aregs[0] + ioResult,    Result);
         env->dregs[0] = Result;
+
+        if (Completion) {
+            env->pc = Completion;
+        } else {
+            env->pc = env->pc + 2;
+        }
+
     }
 }
+
+/*
+void Sony_Return (int iErr, int SaveD0, int Mode) 
+{ 
+    put_word(ParamBlk + kioResult, iErr); // Update ioResult 
+    if (SaveD0 == 0) { // Don't Save D0 
+        if ((iErr & 0x8000) == 0x8000) 
+            m68k_dreg(regs, 0) = 0xFFFF0000 | iErr; // Mask D0 properly 
+        else 
+            m68k_dreg(regs, 0) = 0x00000000 | iErr; // Clear D0 properly 
+    } 
+    // Synchronous, Asynchronous or Immediate 
+    if (((get_word(ParamBlk + kioTrap) & 0x0200) == 0x0200) || (Mode == 1)) 
+        m68k_setpc(m68k_getpc() + 2); // Immediate Return (RTS) 
+    else 
+        m68k_setpc(get_long(0x08FC)); // Jump to JIODone (always done) 
+}*/
 
 void HELPER(divu)(CPUM68KState *env, uint32_t word)
 {

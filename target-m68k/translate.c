@@ -1060,7 +1060,9 @@ DISAS_INSN(undef_mac)
 
 DISAS_INSN(mac_read)
 {
-    gen_helper_read_disk(cpu_env, tcg_const_i32(1));
+    update_cc_op(s);
+    gen_jmp_im(s, s->pc - 2);
+    gen_helper_read_disk(cpu_env, tcg_const_i32(EXCP_LINEA));
 }
 
 DISAS_INSN(undef_fpu)
