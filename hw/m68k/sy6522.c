@@ -148,7 +148,8 @@ static void via_set_reg_vBufB(via_state *s, uint8_t val)
     }
 
     //7-bit - sound enable/disable
-    mac_sound_generator_set_enable(s->snd_st, !(val & REGB_SNDENB_MASK));
+    if ((old & REGB_SNDENB_MASK) != (val & REGB_SNDENB_MASK))
+        mac_sound_generator_set_enable(s->snd_st, !(val & REGB_SNDENB_MASK));
 
     /* TODO: other bits */
 

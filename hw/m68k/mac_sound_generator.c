@@ -1,6 +1,7 @@
 #include "hw/hw.h"
 #include "exec/address-spaces.h"
 #include "audio/audio.h"
+#include "exec/ram_addr.h"
 #include <math.h>
 
 #include "mac_sound_generator.h"
@@ -14,10 +15,12 @@ typedef struct sound_generator_state {
     MemoryRegion iomem;
     QEMUSoundCard card;
     SWVoiceOut *voice;
-    uint8_t mem_buf[BUF_SIZE*2];
+//    uint8_t mem_buf[BUF_SIZE*2];
+    uint32_t current_memory;
     uint16_t sample_buf[BUF_SIZE];
 } sound_generator_state;
 
+/*
 static uint64_t sound_generator_mem_read(void *opaque, hwaddr addr,
                               unsigned size)
 {
@@ -41,6 +44,7 @@ static uint64_t sound_generator_mem_read(void *opaque, hwaddr addr,
         default:
             hw_error("Strange size!");
     }
+    qemu_log("sound_generator_mem_read\n");
     return ret;
 }
 
@@ -71,6 +75,7 @@ static void sound_generator_mem_write(void *opaque, hwaddr addr,
             hw_error("Strange size!");
             return;
     }
+    qemu_log("sound_generator_mem_write write in %s 0x%x\n", addr, re);
 }
 
 static const MemoryRegionOps sound_generator_mem_ops = {
@@ -78,15 +83,18 @@ static const MemoryRegionOps sound_generator_mem_ops = {
     .write = sound_generator_mem_write,
     .endianness = DEVICE_NATIVE_ENDIAN,
 };
-
+*/
 static inline void convert_mem_buf(sound_generator_state *s)
 {
     uint32_t i;
+    uint8_t *src;    
 
-    for (i = 0; i < BUF_SIZE; i++) {
-        s->sample_buf[i] = (uint16_t)(32768-32768*s->mem_buf[i*2]/255.0);
-//      s->sample_buf[i] = (uint8_t)(256*sin((i*PI)/180.0));
-      printf("%d %d\n",s->mem_buf[i*2],s->sample_buf[i]);
+    src = qemu_get_ram_ptr(s->current_memory);
+
+    for (i = 0; i < BUF_SIZE; i++, src+=2) {
+        s->sample_buf[i] = (uint16_t)(32768-32768*(*src)/255.0);
+//        printf("%d %d\n",*src,s->sample_buf[i]);
+//        qemu_log("%d %d\n",*src,s->sample_buf[i]);
     }
 
 }
@@ -101,6 +109,12 @@ static void mac_sound_generator_callback(void *opaque, int free)
 
 void mac_sound_generator_set_enable(sound_generator_state *s, int on) {
     AUD_set_active_out(s->voice, on);
+    if (on) {
+        qemu_log("Sound generator enable\n");
+    } else {
+        qemu_log("Sound generator disable\n");
+    }
+    
 }
 
 void mac_sound_generator_set_volume(sound_generator_state *s, uint8_t volume_level) {
@@ -115,24 +129,30 @@ static void sound_generator_reset(void *opaque)
 
     AUD_set_volume_out (s->voice, 0, 255, 255);
     AUD_set_active_out(s->voice, 0);
-    for (i = 0; i < BUF_SIZE*2; i++) {
-        s->mem_buf[i] = (uint8_t)(256*sin((i*PI)/180.0));
+
+    uint8_t *src;
+    src = qemu_get_ram_ptr(s->current_memory);
+    for (i = 0; i < BUF_SIZE; i++, src+=2) {
+        *src = (uint8_t)(255*sin((i*PI)/370.0));
+//        qemu_log("%d %d\n",*src,(uint8_t)(255*sin((i*PI)/370.0)));
     }
 }
 
 sound_generator_state *mac_sound_generator_init(hwaddr base) {
     sound_generator_state *s = (sound_generator_state *)g_malloc0(sizeof(sound_generator_state));
     struct audsettings as = {44100, 1, AUD_FMT_U16, 0};
-
+/*
     memory_region_init_io(&s->iomem, NULL, &sound_generator_mem_ops, s, "sound_generator", 740);
     memory_region_add_subregion(get_system_memory(), base, &s->iomem);
-
+*/
     AUD_register_card(s_sg, &s->card);
 
     s->voice = AUD_open_out(&s->card, s->voice, s_sg, s, mac_sound_generator_callback, &as);
     if (!s->voice) {
         AUD_log(s_sg, "Could not open voice\n");
     }
+
+    s->current_memory = 0x1FD00;
 
     qemu_register_reset(sound_generator_reset, s);
     sound_generator_reset(s);
