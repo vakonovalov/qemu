@@ -41,6 +41,9 @@ typedef struct via_state {
     rtc_state *rtc;
     /* vertical blanking interrupt */
     timer_state *vbi;
+    /* timer 1 */
+    timer_state *t1;
+    uint8_t t1_latch;
     /* timer 2 */
     timer_state *t2;
     uint8_t t2_latch;
@@ -117,8 +120,15 @@ static void via_set_reg_vBufA(via_state *s, uint8_t val)
         qemu_log("via: SEL bit set to %x\n", !!(val & REGA_SEL_MASK));
     }
 
-    /*bit 0-2 sound volume*/
-    mac_sound_generator_set_volume(s->snd_st, val & REGA_SNDVOL_MASK);
+    /*bit 0-2 sound generator volume*/
+    if ((old & REGA_SNDVOL_MASK) != (val & REGA_SNDVOL_MASK)) {
+        mac_sound_generator_set_volume(s->snd_st, val & REGA_SNDVOL_MASK);
+    }
+
+    /*bit 3 sound generator main/alternative buffer*/
+    if ((old & REGA_SNDPG2_MASK) != (val & REGA_SNDPG2_MASK)) {
+        mac_sound_generator_change_mem_buffer(s->snd_st, val & REGA_SNDPG2_MASK);
+    }
 
     /* TODO: other bits */
 
@@ -147,9 +157,10 @@ static void via_set_reg_vBufB(via_state *s, uint8_t val)
         rtc_param_reset(s->rtc);
     }
 
-    //7-bit - sound enable/disable
-    if ((old & REGB_SNDENB_MASK) != (val & REGB_SNDENB_MASK))
+    //7-bit - sound generator enable/disable
+    if ((old & REGB_SNDENB_MASK) != (val & REGB_SNDENB_MASK)) {
         mac_sound_generator_set_enable(s->snd_st, !(val & REGB_SNDENB_MASK));
+    }
 
     /* TODO: other bits */
 

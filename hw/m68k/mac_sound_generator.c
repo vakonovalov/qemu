@@ -113,13 +113,21 @@ void mac_sound_generator_set_enable(sound_generator_state *s, int on) {
         qemu_log("Sound generator enable\n");
     } else {
         qemu_log("Sound generator disable\n");
-    }
-    
+    } 
 }
 
 void mac_sound_generator_set_volume(sound_generator_state *s, uint8_t volume_level) {
     AUD_set_volume_out (s->voice, 0, (uint8_t)(255*(8-volume_level)/8.0), (uint8_t)(255*(8-volume_level)/8.0));
     qemu_log("Sound generator volume %d\n",(uint8_t)(255*(8-volume_level)/8.0));
+}
+
+void mac_sound_generator_change_mem_buffer(sound_generator_state *s, int on) {
+    if (on) {
+        s->current_memory = 0x1FD00;
+    } else {
+        s->current_memory = 0x1A100;
+    }
+    qemu_log("Sound generator memory buffer set to %x\n", s->current_memory);
 }
 
 static void sound_generator_reset(void *opaque)
@@ -129,12 +137,13 @@ static void sound_generator_reset(void *opaque)
 
     AUD_set_volume_out (s->voice, 0, 255, 255);
     AUD_set_active_out(s->voice, 0);
+    s->current_memory = 0x1FD00;
 
     uint8_t *src;
     src = qemu_get_ram_ptr(s->current_memory);
     for (i = 0; i < BUF_SIZE; i++, src+=2) {
         *src = (uint8_t)(255*sin((i*PI)/370.0));
-//        qemu_log("%d %d\n",*src,(uint8_t)(255*sin((i*PI)/370.0)));
+ //       qemu_log("%d %d\n",*src,(uint8_t)(255*sin((i*PI)/370.0)));
     }
 }
 
@@ -151,8 +160,6 @@ sound_generator_state *mac_sound_generator_init(hwaddr base) {
     if (!s->voice) {
         AUD_log(s_sg, "Could not open voice\n");
     }
-
-    s->current_memory = 0x1FD00;
 
     qemu_register_reset(sound_generator_reset, s);
     sound_generator_reset(s);

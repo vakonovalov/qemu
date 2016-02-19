@@ -9,6 +9,7 @@ typedef struct via_state via_state;
 #define REGB_SNDENB_MASK (1 << 7)
 #define SELBIT 5
 #define REGA_SNDVOL_MASK 0x7
+#define REGA_SNDPG2_MASK (1 << 3)
 #define REGA_SEL_MASK (1 << SELBIT)
 
 enum
