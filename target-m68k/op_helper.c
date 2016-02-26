@@ -229,6 +229,7 @@ enum resultCodes {
 
 void HELPER(read_disk)(CPUM68KState *env, uint32_t tt)
 {
+    CPUState *cs = CPU(m68k_env_get_cpu(env));
     FILE * disk;
     int ReqCount  = cpu_ldl_kernel(env, env->aregs[0] + ioReqCount);
     int ActCount  = 0;
@@ -241,7 +242,8 @@ void HELPER(read_disk)(CPUM68KState *env, uint32_t tt)
     char file_name[] = "2.0 System Disk.dsk";
 
     env->cc_dest = 0;
-
+    qemu_log("mac_read at 0x%x refnum=%x\n", env->pc, cpu_lduw_kernel(env, env->aregs[0] + ioRefNum));
+    printf("pc = %x\n", env->pc);
     printf("a[0] = %x\n", env->aregs[0]);
     printf("ioCompletion = %x\n",  cpu_ldl_kernel(env, env->aregs[0] + ioCompletion));
     printf("ioResult     = %x\n", cpu_lduw_kernel(env, env->aregs[0] + ioResult));
@@ -257,7 +259,7 @@ void HELPER(read_disk)(CPUM68KState *env, uint32_t tt)
         printf("dfgdfgdfg\n");
         raise_exception(env, tt);
     } else {
-        if ((disk = fopen (file_name, "r")) == NULL) {
+        if ((disk = fopen (file_name, "rb")) == NULL) {
             qemu_log("Error open disk file %s\n", file_name);
             Result = fnOpnErr;
         } else {
@@ -269,18 +271,22 @@ void HELPER(read_disk)(CPUM68KState *env, uint32_t tt)
                 } else {
                     cpu_stb_kernel(env, Buffer + ActCount, buffer[0] & 0xff);
                     ActCount++;
-                    printf("%x", buffer[0] & 0xff);
+                    printf("%02x", buffer[0] & 0xff);
                 }
             }
             printf("\n");
             fclose(disk);
         }
+        printf("Actually read bytes: %x\n", ActCount);
         cpu_stl_kernel(env, env->aregs[0] + ioPosOffset, ActCount + PosOffset);
         cpu_stl_kernel(env, env->aregs[0] + ioActCount,  ActCount);
         cpu_stl_kernel(env, env->aregs[0] + ioResult,    Result);
         env->dregs[0] = Result;
 
         if (Completion) {
+            //cs->exception_index = EXCP_TRAP0;
+            //do_interrupt_all(env, false);
+            //env->pc = 0x401116;
             env->pc = Completion;
         } else {
             env->pc = env->pc + 2;
