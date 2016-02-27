@@ -193,7 +193,7 @@ static void raise_exception(CPUM68KState *env, int tt)
         (cpu_lduw_kernel(env, env->pc) != 0x4e73) /* rte */
         ) {
         printf("0x%x val:%x\n", env->pc, cpu_lduw_kernel(env, env->pc));
-        qemu_log("0x%x val:%x\n", env->pc, cpu_lduw_kernel(env, env->pc));
+        qemu_log("0x%x val:%x a0=%x a1=%x d0=%x\n", env->pc, cpu_lduw_kernel(env, env->pc), env->aregs[0], env->aregs[1], env->dregs[0]);
     }
 
     cs->exception_index = tt;
@@ -229,7 +229,7 @@ enum resultCodes {
 
 void HELPER(read_disk)(CPUM68KState *env, uint32_t tt)
 {
-    CPUState *cs = CPU(m68k_env_get_cpu(env));
+    //CPUState *cs = CPU(m68k_env_get_cpu(env));
     FILE * disk;
     int ReqCount  = cpu_ldl_kernel(env, env->aregs[0] + ioReqCount);
     int ActCount  = 0;
