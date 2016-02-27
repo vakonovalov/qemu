@@ -16,6 +16,7 @@
 #include "sy6522.h"
 #include "mac_rtc.h"
 #include "mac_keyboard.h"
+#include "mac_int_control.h"
 
 #define REGA_OVERLAY_MASK (1 << 4)
 /* In Macintosh Plus 1ms is 780 VIA clock cycles */
@@ -44,6 +45,7 @@ typedef struct via_state {
     uint8_t t2_latch;
     /* keyboard */
     keyboard_state *keyboard;
+    int_state *int_st;
 } via_state;
 
 const char *via_regs[VIA_REGS] = {"vBufB", "---", "vDirB", "vDirA", "vT1C", 
@@ -155,9 +157,9 @@ static void via_set_reg_vIFR(via_state *s, uint8_t val)
     s->regs[vIFR] = (!!(s->regs[vIER] & s->regs[vIFR] & 0x7f) << 7) | (s->regs[vIFR] & 0x7f);
 
     if (s->regs[vIFR] & 0x80) {
-        m68k_set_irq_level(s->cpu, 1, 0x64 >> 2);
+        set_hw_irq(s->cpu, s->int_st, 1, 0x64 >> 2);
     } else {
-        m68k_set_irq_level(s->cpu, 0, 0x64 >> 2);
+        set_hw_irq(s->cpu, s->int_st, 0, 0x64 >> 2);
     }
 
     qemu_log("via: vIFR set to 0x%x\n", s->regs[vIFR]);
@@ -323,7 +325,7 @@ static timer_state *vbi_init(qemu_irq irq)
 }
 
 via_state *sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
-                 uint32_t base, M68kCPU *cpu)
+                 uint32_t base, int_state *int_st, M68kCPU *cpu)
 {
     via_state *s;
     qemu_irq *pic;
@@ -346,6 +348,7 @@ via_state *sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
     s->vbi = vbi_init(pic[1]);
     s->t2 = timer2_init(s, pic[5]);
     s->keyboard = keyboard_init(s, pic[2]);
+    s->int_st = int_st;
 
     qemu_register_reset(sy6522_reset, s);
     sy6522_reset(s);
