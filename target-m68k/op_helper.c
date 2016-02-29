@@ -185,7 +185,7 @@ bool m68k_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
     return false;
 }
 
-static void raise_exception(CPUM68KState *env, int tt)
+static void raise_exception(CPUM68KState *env, int tt, uintptr_t pc)
 {
     CPUState *cs = CPU(m68k_env_get_cpu(env));
 
@@ -197,12 +197,17 @@ static void raise_exception(CPUM68KState *env, int tt)
     }
 
     cs->exception_index = tt;
+    if (pc) {
+        /* now we have a real cpu fault */
+        cpu_restore_state(cs, pc);
+    }
+
     cpu_loop_exit(cs);
 }
 
 void HELPER(raise_exception)(CPUM68KState *env, uint32_t tt)
 {
-    raise_exception(env, tt);
+    raise_exception(env, tt, GETPC());
 }
 
 enum ioParams {
@@ -257,7 +262,7 @@ void HELPER(read_disk)(CPUM68KState *env, uint32_t tt)
 
     if (cpu_lduw_kernel(env, env->aregs[0] + ioRefNum) != 0xfffb) {
         printf("dfgdfgdfg\n");
-        raise_exception(env, tt);
+        raise_exception(env, tt, GETPC());
     } else {
         if ((disk = fopen (file_name, "rb")) == NULL) {
             qemu_log("Error open disk file %s\n", file_name);
@@ -324,7 +329,7 @@ void HELPER(divu)(CPUM68KState *env, uint32_t word)
     den = env->div2;
     /* ??? This needs to make sure the throwing location is accurate.  */
     if (den == 0) {
-        raise_exception(env, EXCP_DIV0);
+        raise_exception(env, EXCP_DIV0, GETPC());
     }
     quot = num / den;
     rem = num % den;
@@ -361,7 +366,7 @@ void HELPER(divs)(CPUM68KState *env, uint32_t word)
     num = env->div1;
     den = env->div2;
     if (den == 0) {
-        raise_exception(env, EXCP_DIV0);
+        raise_exception(env, EXCP_DIV0, GETPC());
     }
     quot = num / den;
     rem = num % den;
@@ -397,7 +402,7 @@ void HELPER(divu64)(CPUM68KState *env)
     den = env->div2;
     /* ??? This needs to make sure the throwing location is accurate.  */
     if (den == 0) {
-        raise_exception(env, EXCP_DIV0);
+        raise_exception(env, EXCP_DIV0, GETPC());
     }
     quad = num | ((uint64_t)env->quadh << 32);
     quot = quad / den;
@@ -429,7 +434,7 @@ void HELPER(divs64)(CPUM68KState *env)
     num = env->div1;
     den = env->div2;
     if (den == 0) {
-        raise_exception(env, EXCP_DIV0);
+        raise_exception(env, EXCP_DIV0, GETPC());
     }
     quad = num | ((int64_t)env->quadh << 32);
     quot = quad / (int64_t)den;
