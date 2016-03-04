@@ -20,8 +20,10 @@
 #include "mac_sound_generator.h"
 
 #define REGA_OVERLAY_MASK (1 << 4)
-/* In Macintosh Plus 1ms is 780 VIA clock cycles */
-#define F2_RATE 1282
+/* In Macintosh Plus 1ms is 780 VIA clock cycles 
+#define F2_RATE 1282 */
+/* Page 22 Volume III (or page 1025) of Inside_Macintosh */
+#define F2_RATE 1277
 
 typedef struct timer_state {
     qemu_irq irq;
@@ -43,7 +45,6 @@ typedef struct via_state {
     timer_state *vbi;
     /* timer 1 */
     timer_state *t1;
-    uint8_t t1_latch;
     /* timer 2 */
     timer_state *t2;
     uint8_t t2_latch;
@@ -58,6 +59,54 @@ const char *via_regs[VIA_REGS] = {"vBufB", "---", "vDirB", "vDirA", "vT1C",
                                   "vT1CH", "vT1L", "vT1LH", "vT2C",
                                   "vT2CH", "vSR", "vACR", "vPCR",
                                   "vIFR", "vIER", "vBufA"};
+
+static void timer1_interrupt(void * opaque)
+{
+    via_state *s = opaque;
+
+    switch ((s->regs[vACR] && 0xc0) >> 6) {
+        case 0:
+            //TODO prohibit direct change of interrupt flag
+            s->regs[vT1CH] = 0xff;
+            s->regs[vT1C] = 0xff;
+            break;
+        case 1:
+            s->regs[vT1CH] = s->regs[vT1LH];
+            s->regs[vT1C] = s->regs[vT1L];
+            break;
+        case 2:
+            //TODO prohibit direct change of interrupt flag
+            s->regs[vT1CH] = 0xff;
+            s->regs[vT1C] = 0xff;
+            //TODO PB7 should change state to high
+            break;
+        case 3:
+            s->regs[vT1CH] = s->regs[vT1LH];
+            s->regs[vT1C] = s->regs[vT1L];
+            //TODO PB7 should inverse its state
+            break;
+    }
+
+    qemu_log("via: T1 timer interrupt\n");
+    qemu_irq_raise(s->t1->irq);
+//Fot later use timer_expire_time_ns
+    timer_mod_ns(s->t2->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + F2_RATE * (256 * s->regs[vT1CH] + s->regs[vT1C]));
+}
+
+static timer_state *timer1_init(via_state *via, qemu_irq irq)
+{
+    timer_state *s = (timer_state *)g_malloc0(sizeof(timer_state));
+    
+    s->irq = irq;
+    s->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, timer2_interrupt, via);
+    return s;
+}
+
+static void timer1_reset(via_state *s)
+{
+    s->t2_latch = 1;
+    timer_mod_ns(s->t2->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL));
+}                                  
 
 static void timer2_interrupt(void * opaque)
 {
