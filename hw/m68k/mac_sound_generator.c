@@ -8,7 +8,7 @@
 
 #define BUF_SIZE 370
 #define PI 3.14159265
-//370
+
 static const char *s_sg = "mac sound generator";
 
 typedef struct sound_generator_state {
