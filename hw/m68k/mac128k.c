@@ -154,7 +154,7 @@ static void mac128k_init(MachineState *machine)
     memory_region_set_readonly(rom, true);
 
     int_st = int_init();
-    snd_st = mac_sound_generator_init(0x1FD00);
+    snd_st = mac_sound_generator_init();
     via = sy6522_init(rom, ram, VIA_BASE_ADDR, int_st, snd_st, cpu);
     iwm_init(address_space_mem, IWM_BASE_ADDR, cpu, via);
     z8530_init(0x800000, via, int_st, cpu);
