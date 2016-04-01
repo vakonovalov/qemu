@@ -147,7 +147,7 @@ static void sound_generator_reset(void *opaque)
     }
 }
 
-sound_generator_state *mac_sound_generator_init(hwaddr base) {
+sound_generator_state *mac_sound_generator_init(void) {
     sound_generator_state *s = (sound_generator_state *)g_malloc0(sizeof(sound_generator_state));
     struct audsettings as = {44100, 1, AUD_FMT_U16, 0};
 /*
