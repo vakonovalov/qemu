@@ -15,7 +15,6 @@ typedef struct mouse_state {
     Z8530State *z8530;
     int32_t mouse_dx;
     int32_t mouse_dy;
-    uint8_t mouse_button;
 } mouse_state;
 
 static void mac_mouse_event(DeviceState *dev, QemuConsole *src, InputEvent *evt);
@@ -54,9 +53,11 @@ static void mac_mouse_event(DeviceState *dev, QemuConsole *src,
 
     case INPUT_EVENT_KIND_BTN:
         if (evt->btn->down) {
-            s->mouse_button = 1;
+            qemu_log("mouse: button down\n");
+            via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) & 0xf7);
         } else {
-            s->mouse_button = 0;
+            qemu_log("mouse: button up\n");
+            via_set_reg(s->via, vBufB, via_get_reg(s->via, vBufB) | 0x08);
         }
         break;
 

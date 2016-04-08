@@ -6,6 +6,7 @@
 #define HOST_TO_MAC_RTC (66 * 365 + 17) * 24 * 3600
 
 #define RTC_BUF_MASK 0x03
+#define RTCRWBIT_MASK (1 << 7)
 
 typedef struct rtc_state {
     qemu_irq irq;
@@ -69,7 +70,7 @@ void rtc_receive(rtc_state *rtc, uint8_t val)
     }
     rtc->count++;
     if (rtc->count == 8) {
-        if (!(rtc->cmd & REGB_RTCRWBIT_MASK) && !(rtc->rw_flag)) {
+        if (!(rtc->cmd & RTCRWBIT_MASK) && !(rtc->rw_flag)) {
             rtc->rw_flag = 1;
             rtc->count = 0;
         } else if (rtc->rw_flag) {
