@@ -116,7 +116,7 @@ static timer_state *timer1_init(via_state *via, qemu_irq irq)
     s->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, timer1_interrupt, via);
     s->prohibit_interrupt_flag = 1;
     return s;
-}                                
+}
 
 static void timer2_interrupt(void * opaque)
 {
@@ -248,7 +248,8 @@ static void via_set_reg_vIER(via_state *s, uint8_t val)
     qemu_log("via: vIER set to 0x%x\n", s->regs[vIER]);
 }
 
-static void via_set_reg_vT1C(via_state *s, uint8_t val) {
+static void via_set_reg_vT1C(via_state *s, uint8_t val)
+{
     hw_error("TODO unknown. There is no mode which clearly writes value into low-byte counter. Page 6 of VIA documentation");
 /*
     s->regs[vT1C] = val;
@@ -258,7 +259,8 @@ static void via_set_reg_vT1C(via_state *s, uint8_t val) {
 }
 
 /* Made according to RS3 = L, RS2 = H, RS1 = L, RS0 = H. Page 6 of VIA documentation */
-static void via_set_reg_vT1CH(via_state *s, uint8_t val) {
+static void via_set_reg_vT1CH(via_state *s, uint8_t val)
+{
     s->regs[vT1LH] = val;
     s->regs[vT1CH] = val;
     s->regs[vT1C] = s->regs[vT1L];
@@ -271,24 +273,28 @@ static void via_set_reg_vT1CH(via_state *s, uint8_t val) {
     timer_mod_ns(s->t1->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + F2_RATE * (256 * s->regs[vT1CH] + s->regs[vT1C]));
 }
 
-static void via_set_reg_vT1L(via_state *s, uint8_t val) {
+static void via_set_reg_vT1L(via_state *s, uint8_t val)
+{
     s->regs[vT1L] = val;
     qemu_log("via: vT1L set to 0x%x\n", s->regs[vT1L]);
 }
 
-static void via_set_reg_vT1LH(via_state *s, uint8_t val) {
+static void via_set_reg_vT1LH(via_state *s, uint8_t val)
+{
     s->regs[vT1LH] = val;
     s->t1->prohibit_interrupt_flag = 0;
     via_set_reg_vIFR(s, 0x40);
     qemu_log("via: vT1LH set to 0x%x\n", s->regs[vT1LH]);
 }
 
-static void via_set_reg_vT2C(via_state *s, uint8_t val) {
+static void via_set_reg_vT2C(via_state *s, uint8_t val)
+{
     s->T2L_L = val;
     qemu_log("via: vT2C set to 0x%x\n", s->regs[vT2C]);
 }
 
-static void via_set_reg_vT2CH(via_state *s, uint8_t val) {
+static void via_set_reg_vT2CH(via_state *s, uint8_t val)
+{
     s->regs[vT2CH] = val;
     s->regs[vT2C] = s->T2L_L;
     s->t2->prohibit_interrupt_flag = 0;
@@ -334,7 +340,8 @@ static uint32_t via_readb(void *opaque, hwaddr offset)
     return ret;
 }
 
-static uint8_t via_get_reg_vT1C(via_state *via) {
+static uint8_t via_get_reg_vT1C(via_state *via)
+{
     uint64_t end, current, diff;
     via->t1->prohibit_interrupt_flag = 0;
     end = timer_expire_time_ns(via->t1->timer);
@@ -343,7 +350,8 @@ static uint8_t via_get_reg_vT1C(via_state *via) {
     return (diff / F2_RATE) % 256;
 }
 
-static uint8_t via_get_reg_vT1CH(via_state *via) {
+static uint8_t via_get_reg_vT1CH(via_state *via)
+{
     uint64_t end, current, diff;
     end = timer_expire_time_ns(via->t1->timer);
     current = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
@@ -351,7 +359,8 @@ static uint8_t via_get_reg_vT1CH(via_state *via) {
     return (diff / F2_RATE) / 256;
 }
 
-static uint8_t via_get_reg_vT2C(via_state *via) {
+static uint8_t via_get_reg_vT2C(via_state *via)
+{
     uint64_t end, current, diff;
     via->t2->prohibit_interrupt_flag = 0;
     end = timer_expire_time_ns(via->t2->timer);
@@ -360,7 +369,8 @@ static uint8_t via_get_reg_vT2C(via_state *via) {
     return (diff / F2_RATE) % 256;
 }
 
-static uint8_t via_get_reg_vT2CH(via_state *via) {
+static uint8_t via_get_reg_vT2CH(via_state *via)
+{
     uint64_t end, current, diff;
     end = timer_expire_time_ns(via->t2->timer);
     current = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
@@ -508,7 +518,7 @@ via_state *sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
 
     s->rtc = rtc_init(pic[0]);
     s->vbi = vbi_init(pic[1]);
-    s->keyboard = keyboard_init(s, pic[2]);    
+    s->keyboard = keyboard_init(s, pic[2]);
     s->t2 = timer2_init(s, pic[5]);
     s->t1 = timer1_init(s, pic[6]);
 
