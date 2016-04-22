@@ -51,6 +51,13 @@ static drawfn draw_line_table[33] = {
     [32]	= draw_line_32,
 };
 
+static MemoryRegion *ram;
+
+void *mac_get_ram_ptr(void)
+{
+    return memory_region_get_ram_ptr(ram);
+}
+
 static void mac_update_display(void *opaque)
 {
     mac_display *s = (mac_display*)opaque;
@@ -97,7 +104,7 @@ static void mac128k_init(MachineState *machine)
     M68kCPU *cpu;
     int kernel_size;
     MemoryRegion *address_space_mem = get_system_memory();
-    MemoryRegion *ram = g_new(MemoryRegion, 1);
+    ram = g_new(MemoryRegion, 1);
     MemoryRegion *rom = g_new(MemoryRegion, 1);
     via_state *via;
     int_state *int_st;

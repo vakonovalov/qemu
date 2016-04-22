@@ -6,6 +6,8 @@ typedef struct int_state int_state;
 
 struct MemoryRegion;
 
+void *mac_get_ram_ptr(void);
+
 /* sy6522.c */
 via_state *sy6522_init(MemoryRegion *rom, MemoryRegion *ram, uint32_t base, int_state *int_st, M68kCPU *cpu);
 /* iwm.c */

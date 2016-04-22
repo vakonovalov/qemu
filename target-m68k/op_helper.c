@@ -19,6 +19,7 @@
 #include "cpu.h"
 #include "exec/helper-proto.h"
 #include "exec/cpu_ldst.h"
+#include "hw/block/mac_fd.h"
 
 #if defined(CONFIG_USER_ONLY)
 
@@ -192,7 +193,7 @@ static void raise_exception(CPUM68KState *env, int tt, uintptr_t pc)
     if (
         (cpu_lduw_kernel(env, env->pc) != 0x4e73) /* rte */
         ) {
-        printf("0x%x val:%x\n", env->pc, cpu_lduw_kernel(env, env->pc));
+        //printf("0x%x val:%x\n", env->pc, cpu_lduw_kernel(env, env->pc));
         qemu_log("0x%x val:%x a0=%x a1=%x d0=%x\n", env->pc, cpu_lduw_kernel(env, env->pc), env->aregs[0], env->aregs[1], env->dregs[0]);
     }
 
@@ -232,57 +233,33 @@ enum resultCodes {
     rfNumErr = -51
 };
 
+#include "exec/address-spaces.h"
+
 void HELPER(read_disk)(CPUM68KState *env, uint32_t tt)
 {
-    //CPUState *cs = CPU(m68k_env_get_cpu(env));
-    FILE * disk;
     int ReqCount  = cpu_ldl_kernel(env, env->aregs[0] + ioReqCount);
     int ActCount  = 0;
-    //int PosOffset = cpu_ldl_kernel(env, env->aregs[0] + ioPosOffset);
-    int Buffer    = cpu_ldl_kernel(env, env->aregs[0] + ioBuffer);
+    int Buffer = cpu_ldl_kernel(env, env->aregs[0] + ioBuffer);
     int PosOffset = cpu_ldl_kernel(env, env->aregs[0] + ioPosOffset);
     int Completion = cpu_ldl_kernel(env, env->aregs[0] + ioCompletion);
     int Result = noErr;
-    char buffer[1];
-    char file_name[] = "2.0 System Disk.dsk";
 
     env->cc_dest = 0;
+
     qemu_log("mac_read at 0x%x refnum=%x\n", env->pc, cpu_lduw_kernel(env, env->aregs[0] + ioRefNum));
-    printf("pc = %x\n", env->pc);
-    printf("a[0] = %x\n", env->aregs[0]);
-    printf("ioCompletion = %x\n",  cpu_ldl_kernel(env, env->aregs[0] + ioCompletion));
-    printf("ioResult     = %x\n", cpu_lduw_kernel(env, env->aregs[0] + ioResult));
-    printf("ioVRefNum    = %x\n", cpu_lduw_kernel(env, env->aregs[0] + ioVRefNum));
-    printf("ioRefNum     = %x\n", cpu_lduw_kernel(env, env->aregs[0] + ioRefNum));
-    printf("ioBuffer     = %x\n",  cpu_ldl_kernel(env, env->aregs[0] + ioBuffer));
-    printf("ioReqCount   = %x\n",  cpu_ldl_kernel(env, env->aregs[0] + ioReqCount));
-    printf("ioActCount   = %x\n",  cpu_ldl_kernel(env, env->aregs[0] + ioActCount));
-    printf("ioPosMode    = %x\n", cpu_lduw_kernel(env, env->aregs[0] + ioPosMode));
-    printf("ioPosOffset  = %x\n",  cpu_ldl_kernel(env, env->aregs[0] + ioPosOffset));
+
+    /*printf("ioCompletion = %x\n"
+           "ioBuffer     = %x\n"
+           "ioReqCount   = %i\n"
+           "ioPosOffset  = %i\n\n",
+           Completion, Buffer, ReqCount, PosOffset);*/
 
     if (cpu_lduw_kernel(env, env->aregs[0] + ioRefNum) != 0xfffb) {
-        printf("dfgdfgdfg\n");
         raise_exception(env, tt, GETPC());
     } else {
-        if ((disk = fopen (file_name, "rb")) == NULL) {
-            qemu_log("Error open disk file %s\n", file_name);
-            Result = fnOpnErr;
-        } else {
-            fseek(disk , PosOffset, SEEK_SET);
-            while (!feof(disk) & (ActCount != ReqCount)) {
-                if (!fread(buffer, 1, 1, disk)) {
-                    qemu_log("Error read byte from file %s\n", file_name);
-                    Result = eofErr;
-                } else {
-                    cpu_stb_kernel(env, Buffer + ActCount, buffer[0] & 0xff);
-                    ActCount++;
-                    printf("%02x", buffer[0] & 0xff);
-                }
-            }
-            printf("\n");
-            fclose(disk);
-        }
-        printf("Actually read bytes: %x\n", ActCount);
+        mac_fd_read(PosOffset / BLOCK_SIZE, Buffer, ReqCount / BLOCK_SIZE);
+        ActCount = ReqCount;
+
         cpu_stl_kernel(env, env->aregs[0] + ioPosOffset, ActCount + PosOffset);
         cpu_stl_kernel(env, env->aregs[0] + ioActCount,  ActCount);
         cpu_stl_kernel(env, env->aregs[0] + ioResult,    Result);
@@ -296,26 +273,8 @@ void HELPER(read_disk)(CPUM68KState *env, uint32_t tt)
         } else {
             env->pc = env->pc + 2;
         }
-
     }
 }
-
-/*
-void Sony_Return (int iErr, int SaveD0, int Mode) 
-{ 
-    put_word(ParamBlk + kioResult, iErr); // Update ioResult 
-    if (SaveD0 == 0) { // Don't Save D0 
-        if ((iErr & 0x8000) == 0x8000) 
-            m68k_dreg(regs, 0) = 0xFFFF0000 | iErr; // Mask D0 properly 
-        else 
-            m68k_dreg(regs, 0) = 0x00000000 | iErr; // Clear D0 properly 
-    } 
-    // Synchronous, Asynchronous or Immediate 
-    if (((get_word(ParamBlk + kioTrap) & 0x0200) == 0x0200) || (Mode == 1)) 
-        m68k_setpc(m68k_getpc() + 2); // Immediate Return (RTS) 
-    else 
-        m68k_setpc(get_long(0x08FC)); // Jump to JIODone (always done) 
-}*/
 
 void HELPER(divu)(CPUM68KState *env, uint32_t word)
 {
