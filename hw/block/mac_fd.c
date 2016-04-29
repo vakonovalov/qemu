@@ -48,22 +48,10 @@ static void mac_fd_reset(DeviceState *dev)
 
 }
 
-static void mac_fd_pre_save(void *opaque)
-{
-
-}
-
-static int mac_fd_post_load(void *opaque, int version_id)
-{
-    return 0;
-}
-
 static const VMStateDescription vmstate_mac_fd = {
     .name = "mac_fd",
     .version_id = 1,
     .minimum_version_id = 1,
-    .pre_save = mac_fd_pre_save,
-    .post_load = mac_fd_post_load,
     .fields = (VMStateField[]) {
         /* XXX: do we want to save s->storage too? */
         VMSTATE_END_OF_LIST()
