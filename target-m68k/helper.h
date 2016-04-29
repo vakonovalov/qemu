@@ -65,6 +65,8 @@ DEF_HELPER_3(sub_cmp_f64, f64, env, f64, f64)
 DEF_HELPER_2(compare_f64, i32, env, f64)
 
 DEF_HELPER_3(mac_move, void, env, i32, i32)
+DEF_HELPER_2(read_disk, void, env, i32)
+DEF_HELPER_2(write_disk, void, env, i32)
 DEF_HELPER_3(macmulf, i64, env, i32, i32)
 DEF_HELPER_3(macmuls, i64, env, i32, i32)
 DEF_HELPER_3(macmulu, i64, env, i32, i32)

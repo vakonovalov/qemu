@@ -50,9 +50,9 @@ static void glue(draw_line_, DEPTH)(uint8_t *d, const uint8_t *s, int width)
     do {
         v = ldub_p((void *) s);
         for (mask = 0x80 ; mask ; mask >>= 1) {
-            r = (v & mask) ? 0xff : 0;
-            g = (v & mask) ? 0xff : 0;
-            b = (v & mask) ? 0xff : 0;
+            r = (v & mask) ? 0 : 0xff;
+            g = (v & mask) ? 0 : 0xff;
+            b = (v & mask) ? 0 : 0xff;
             ((PIXEL_TYPE *) d)[0] = glue(rgb_to_pixel, DEPTH)(r, g, b);
             d += BPP;
         }

@@ -665,6 +665,7 @@ static TCGv gen_lea(CPUM68KState *env, DisasContext *s, uint16_t insn,
     TCGv tmp;
     uint16_t ext;
     uint32_t offset;
+    int size;
 
     switch ((insn >> 3) & 7) {
     case 0: /* Data register direct.  */
@@ -676,7 +677,10 @@ static TCGv gen_lea(CPUM68KState *env, DisasContext *s, uint16_t insn,
     case 4: /* Indirect predecrememnt.  */
         reg = AREG(insn, 0);
         tmp = tcg_temp_new();
-        tcg_gen_subi_i32(tmp, reg, opsize_bytes(opsize));
+        size = opsize_bytes(opsize);
+        if (REG(insn, 0) == 7 && size == 1)
+            size = 2;
+        tcg_gen_subi_i32(tmp, reg, size);
         return tmp;
     case 5: /* Indirect displacement.  */
         reg = AREG(insn, 0);
@@ -767,8 +771,12 @@ static TCGv gen_ea(CPUM68KState *env, DisasContext *s, uint16_t insn,
         result = gen_ldst(s, opsize, reg, val, what);
         /* ??? This is not exception safe.  The instruction may still
            fault after this point.  */
-        if (what == EA_STORE || !addrp)
-            tcg_gen_addi_i32(reg, reg, opsize_bytes(opsize));
+        if (what == EA_STORE || !addrp) {
+            int size = opsize_bytes(opsize);
+            if (REG(insn, 0) == 7 && size == 1)
+                size = 2;
+            tcg_gen_addi_i32(reg, reg, size);
+        }
         return result;
     case 4: /* Indirect predecrememnt.  */
         {
@@ -1056,6 +1064,20 @@ DISAS_INSN(dbcc)
 DISAS_INSN(undef_mac)
 {
     gen_exception(s, s->pc - 2, EXCP_LINEA);
+}
+
+DISAS_INSN(mac_read)
+{
+    update_cc_op(s);
+    gen_jmp_im(s, s->pc - 2);
+    gen_helper_read_disk(cpu_env, tcg_const_i32(EXCP_LINEA));
+}
+
+DISAS_INSN(mac_write)
+{
+    update_cc_op(s);
+    gen_jmp_im(s, s->pc - 2);
+    gen_helper_write_disk(cpu_env, tcg_const_i32(EXCP_LINEA));
 }
 
 DISAS_INSN(undef_fpu)
@@ -4335,8 +4357,12 @@ void register_m68k_insns (CPUM68KState *env)
     INSN(undef_mac, a000, f000, CF_ISA_A);
     INSN(undef_mac, a000, f000, M68000);
     INSN(mac,       a000, f100, CF_EMAC);
+    INSN(mac_read,  a002, ffff, M68000);
+    INSN(mac_write, a003, ffff, M68000);
     INSN(from_mac,  a180, f9b0, CF_EMAC);
     INSN(move_mac,  a110, f9fc, CF_EMAC);
+    INSN(mac_read,  a402, ffff, M68000);
+    INSN(mac_write, a403, ffff, M68000);
     INSN(from_macsr,a980, f9f0, CF_EMAC);
     INSN(from_mask, ad80, fff0, CF_EMAC);
     INSN(from_mext, ab80, fbf0, CF_EMAC);
