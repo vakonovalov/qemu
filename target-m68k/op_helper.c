@@ -251,7 +251,7 @@ void HELPER(read_disk)(CPUM68KState *env, uint32_t tt)
     //        Completion, Buffer, ReqCount, PosOffset);
 
     if (cpu_lduw_kernel(env, env->aregs[0] + ioRefNum) != 0xfffb) {
-        qemu_log("mac_write: raise_exception\n");
+        qemu_log("mac_read: raise_exception\n");
         raise_exception(env, tt, GETPC());
     } else {
         mac_fd_read(PosOffset / BLOCK_SIZE, Buffer, ReqCount / BLOCK_SIZE);
