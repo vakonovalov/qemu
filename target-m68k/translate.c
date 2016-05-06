@@ -1070,14 +1070,26 @@ DISAS_INSN(mac_read)
 {
     update_cc_op(s);
     gen_jmp_im(s, s->pc - 2);
+    if (s->tb->cflags & CF_USE_ICOUNT) {
+        gen_io_start();
+    }
     gen_helper_read_disk(cpu_env, tcg_const_i32(EXCP_LINEA));
+    if (s->tb->cflags & CF_USE_ICOUNT) {
+        gen_io_end();
+    }
 }
 
 DISAS_INSN(mac_write)
 {
     update_cc_op(s);
     gen_jmp_im(s, s->pc - 2);
+    if (s->tb->cflags & CF_USE_ICOUNT) {
+        gen_io_start();
+    }
     gen_helper_write_disk(cpu_env, tcg_const_i32(EXCP_LINEA));
+    if (s->tb->cflags & CF_USE_ICOUNT) {
+        gen_io_end();
+    }
 }
 
 DISAS_INSN(undef_fpu)
