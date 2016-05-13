@@ -16,6 +16,7 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
+#define DEBUG_GDB
 #include "config.h"
 #include "qemu-common.h"
 #ifdef CONFIG_USER_ONLY
@@ -877,6 +878,7 @@ static int gdb_handle_packet(GDBState *s, const char *line_buf)
                     s->c_cpu = cpu;
                 }
                 if (res == 's') {
+                    printf("Single step\n");
                     cpu_single_step(s->c_cpu, sstep_flags);
                 }
                 s->signal = res_signal;

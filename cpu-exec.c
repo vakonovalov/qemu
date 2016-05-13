@@ -510,7 +510,9 @@ int cpu_exec(CPUArchState *env)
                     trace_exec_tb(tb, tb->pc);
                     tc_ptr = tb->tc_ptr;
                     /* execute the generated code */
+                    printf("cpu_tb_exec %d \n",cpu->exception_index);
                     next_tb = cpu_tb_exec(cpu, tc_ptr);
+                    printf("cpu_tb_exec2 %d \n",cpu->exception_index);
                     switch (next_tb & TB_EXIT_MASK) {
                     case TB_EXIT_REQUESTED:
                         /* Something asked us to stop executing
