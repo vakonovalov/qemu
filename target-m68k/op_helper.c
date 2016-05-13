@@ -19,6 +19,7 @@
 #include "cpu.h"
 #include "exec/helper-proto.h"
 #include "exec/cpu_ldst.h"
+#include "hw/block/mac_fd.h"
 
 #if defined(CONFIG_USER_ONLY)
 
@@ -185,17 +186,133 @@ bool m68k_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
     return false;
 }
 
-static void raise_exception(CPUM68KState *env, int tt)
+static void raise_exception(CPUM68KState *env, int tt, uintptr_t pc)
 {
     CPUState *cs = CPU(m68k_env_get_cpu(env));
 
+    /* rte */
+    if (cpu_lduw_kernel(env, env->pc) != 0x4e73) {
+        qemu_log("0x%x val:%x a0=%x a1=%x d0=%x\n", env->pc, cpu_lduw_kernel(env, env->pc), env->aregs[0], env->aregs[1], env->dregs[0]);
+    }
+
     cs->exception_index = tt;
+    if (pc) {
+        /* now we have a real cpu fault */
+        cpu_restore_state(cs, pc);
+    }
+
     cpu_loop_exit(cs);
 }
 
 void HELPER(raise_exception)(CPUM68KState *env, uint32_t tt)
 {
-    raise_exception(env, tt);
+    raise_exception(env, tt, GETPC());
+}
+
+enum ioParams {
+    ioCompletion = 12,
+    ioResult     = 16,
+    ioVRefNum    = 22,
+    ioRefNum     = 24,
+    ioBuffer     = 32,
+    ioReqCount   = 36,
+    ioActCount   = 40,
+    ioPosMode    = 44,
+    ioPosOffset  = 46
+};
+
+enum resultCodes {
+    noErr    =  0,
+    eofErr   = -39,
+    extFSErr = -58,
+    fnOpnErr = -38,
+    ioErr    = -36,
+    paramErr = -50,
+    rfNumErr = -51
+};
+
+void HELPER(read_disk)(CPUM68KState *env, uint32_t tt)
+{
+    int ReqCount = cpu_ldl_kernel(env, env->aregs[0] + ioReqCount);
+    int ActCount = 0;
+    int Buffer = cpu_ldl_kernel(env, env->aregs[0] + ioBuffer);
+    int PosOffset = cpu_ldl_kernel(env, env->aregs[0] + ioPosOffset);
+    int Completion = cpu_ldl_kernel(env, env->aregs[0] + ioCompletion);
+    int Result = noErr;
+
+    env->cc_dest = 0;
+
+    qemu_log("mac_read at 0x%x refnum=%x\n", env->pc, cpu_lduw_kernel(env, env->aregs[0] + ioRefNum));
+
+    // printf("ioCompletion = %x\n"
+    //        "ioBuffer     = %x\n"
+    //        "ioReqCount   = %i\n"
+    //        "ioPosOffset  = %i\n\n",
+    //        Completion, Buffer, ReqCount, PosOffset);
+
+    if (cpu_lduw_kernel(env, env->aregs[0] + ioRefNum) != 0xfffb) {
+        qemu_log("mac_read: raise_exception\n");
+        raise_exception(env, tt, GETPC());
+    } else {
+        mac_fd_read(PosOffset / BLOCK_SIZE, Buffer, ReqCount / BLOCK_SIZE);
+        ActCount = ReqCount;
+
+        cpu_stl_kernel(env, env->aregs[0] + ioPosOffset, ActCount + PosOffset);
+        cpu_stl_kernel(env, env->aregs[0] + ioActCount,  ActCount);
+        cpu_stl_kernel(env, env->aregs[0] + ioResult,    Result);
+        env->dregs[0] = Result;
+
+        if (Completion) {
+            //cs->exception_index = EXCP_TRAP0;
+            //do_interrupt_all(env, false);
+            //env->pc = 0x401116;
+            env->pc = Completion;
+        } else {
+            env->pc = env->pc + 2;
+        }
+    }
+}
+
+void HELPER(write_disk)(CPUM68KState *env, uint32_t tt)
+{
+    int ReqCount = cpu_ldl_kernel(env, env->aregs[0] + ioReqCount);
+    int ActCount = 0;
+    int Buffer = cpu_ldl_kernel(env, env->aregs[0] + ioBuffer);
+    int PosOffset = cpu_ldl_kernel(env, env->aregs[0] + ioPosOffset);
+    int Completion = cpu_ldl_kernel(env, env->aregs[0] + ioCompletion);
+    int Result = noErr;
+
+    env->cc_dest = 0;
+
+    qemu_log("mac_write at 0x%x refnum=%x\n", env->pc, cpu_lduw_kernel(env, env->aregs[0] + ioRefNum));
+
+    // printf("ioCompletion = %x\n"
+    //        "ioBuffer     = %x\n"
+    //        "ioReqCount   = %i\n"
+    //        "ioPosOffset  = %i\n\n",
+    //        Completion, Buffer, ReqCount, PosOffset);
+
+    if (cpu_lduw_kernel(env, env->aregs[0] + ioRefNum) != 0xfffb) {
+        qemu_log("mac_write: raise_exception\n");
+        raise_exception(env, tt, GETPC());
+    } else {
+        mac_fd_write(PosOffset / BLOCK_SIZE, Buffer, ReqCount / BLOCK_SIZE);
+        ActCount = ReqCount;
+
+        cpu_stl_kernel(env, env->aregs[0] + ioPosOffset, ActCount + PosOffset);
+        cpu_stl_kernel(env, env->aregs[0] + ioActCount,  ActCount);
+        cpu_stl_kernel(env, env->aregs[0] + ioResult,    Result);
+        env->dregs[0] = Result;
+
+        if (Completion) {
+            //cs->exception_index = EXCP_TRAP0;
+            //do_interrupt_all(env, false);
+            //env->pc = 0x401116;
+            env->pc = Completion;
+        } else {
+            env->pc = env->pc + 2;
+        }
+    }
 }
 
 void HELPER(divu)(CPUM68KState *env, uint32_t word)
@@ -210,7 +327,7 @@ void HELPER(divu)(CPUM68KState *env, uint32_t word)
     den = env->div2;
     /* ??? This needs to make sure the throwing location is accurate.  */
     if (den == 0) {
-        raise_exception(env, EXCP_DIV0);
+        raise_exception(env, EXCP_DIV0, GETPC());
     }
     quot = num / den;
     rem = num % den;
@@ -247,7 +364,7 @@ void HELPER(divs)(CPUM68KState *env, uint32_t word)
     num = env->div1;
     den = env->div2;
     if (den == 0) {
-        raise_exception(env, EXCP_DIV0);
+        raise_exception(env, EXCP_DIV0, GETPC());
     }
     quot = num / den;
     rem = num % den;
@@ -283,7 +400,7 @@ void HELPER(divu64)(CPUM68KState *env)
     den = env->div2;
     /* ??? This needs to make sure the throwing location is accurate.  */
     if (den == 0) {
-        raise_exception(env, EXCP_DIV0);
+        raise_exception(env, EXCP_DIV0, GETPC());
     }
     quad = num | ((uint64_t)env->quadh << 32);
     quot = quad / den;
@@ -315,7 +432,7 @@ void HELPER(divs64)(CPUM68KState *env)
     num = env->div1;
     den = env->div2;
     if (den == 0) {
-        raise_exception(env, EXCP_DIV0);
+        raise_exception(env, EXCP_DIV0, GETPC());
     }
     quad = num | ((int64_t)env->quadh << 32);
     quot = quad / (int64_t)den;
