@@ -18,11 +18,8 @@
 #include "ui/pixel_ops.h"
 #include "mac_int_control.h"
 #include "mac_sound_generator.h"
+#include "mac_memory.h"
 
-#define ROM_LOAD_ADDR 0x400000
-#define MAX_ROM_SIZE  0x20000
-#define IWM_BASE_ADDR 0xDFE1FF // dBase
-#define VIA_BASE_ADDR 0xEFE1FE // vBase
 #define SCREEN_WIDTH  512
 #define SCREEN_HEIGHT 342
 
@@ -51,13 +48,6 @@ static drawfn draw_line_table[33] = {
     [16]	= draw_line_16,
     [32]	= draw_line_32,
 };
-
-static MemoryRegion *ram;
-
-void *mac_get_ram_ptr(void)
-{
-    return memory_region_get_ram_ptr(ram);
-}
 
 static void mac_update_display(void *opaque)
 {
@@ -98,16 +88,12 @@ static const GraphicHwOps mac_display_ops = {
 
 static void mac128k_init(MachineState *machine)
 {
-    ram_addr_t ram_size = 0x20000;//machine->ram_size;
-    hwaddr ramOffset;
     const char *cpu_model = machine->cpu_model;
     const char *kernel_filename = machine->kernel_filename;
     M68kCPU *cpu;
     int kernel_size;
-    MemoryRegion *address_space_mem = get_system_memory();
-    ram = g_new(MemoryRegion, 1);
-    MemoryRegion *rom = g_new(MemoryRegion, 1);
-    via_state *via;
+    memory_state *mem_st;
+    via_state *via_st;
     int_state *int_st;
     sound_generator_state *snd_st;
     mac_display *display = (mac_display *)g_malloc0(sizeof(mac_display));
@@ -121,50 +107,12 @@ static void mac128k_init(MachineState *machine)
         hw_error("Unable to find m68k CPU definition\n");
     }
 
-    /* RAM at address zero */
-    memory_region_allocate_system_memory(ram, NULL, "mac128k.ram", ram_size);
-    memory_region_add_subregion(address_space_mem, 0, ram);
-    /* RAM mirroring (address wrap) */
-#define MAP_RAM_LOOP(start, base) do { \
-        for (ramOffset = (start) ; ramOffset <= ROM_LOAD_ADDR - ram_size \
-             ; ramOffset += ram_size) {                            \
-            MemoryRegion *alias = g_new(MemoryRegion, 1);          \
-            memory_region_init_alias(alias, NULL, "RAM mirror",    \
-                ram, 0x0, ram_size);                               \
-            memory_region_add_subregion(address_space_mem,         \
-                (base) + ramOffset, alias);                        \
-        } } while(0)
-
-    MAP_RAM_LOOP(ram_size, 0);
-    /* HACK: RAM mirroring for unused address bits 28-31 
-       TODO: bits 24-27 are still not mapped
-       TODO: ROM and RAM should switch with overlay
-     */
-    uint32_t high;
-    for (high = 1 ; high <= 0xf ; ++high) {
-        MAP_RAM_LOOP(0, high * 0x10000000UL);
-    }
-#undef MAP_RAM_LOOP
-    /* RAM mirroring for overlay (address wrap) */
-    for (ramOffset = ram_size ; ramOffset <= 0x800000 - ram_size
-         ; ramOffset += ram_size)
-    {
-        /* hack: should be enabled only when overlay is on */
-        MemoryRegion *alias = g_new(MemoryRegion, 1);
-        memory_region_init_alias(alias, NULL, "RAM mirror", ram, 0x0, ram_size);
-        memory_region_add_subregion(address_space_mem, 0x600000 + ramOffset, alias);
-    }
-
-    /* ROM */
-    memory_region_init_ram(rom, NULL, "mac128k.rom", MAX_ROM_SIZE, &error_abort);
-    memory_region_add_subregion(address_space_mem, ROM_LOAD_ADDR, rom);
-    memory_region_set_readonly(rom, true);
-
+    mem_st = mac_memory_init();
     int_st = int_init();
     snd_st = mac_sound_generator_init();
-    via = sy6522_init(rom, ram, VIA_BASE_ADDR, int_st, snd_st, cpu);
-    iwm_init(address_space_mem, IWM_BASE_ADDR, cpu, via);
-    z8530_init(0x800000, via, int_st, cpu);
+    via_st = sy6522_init(mem_st, VIA_BASE_ADDR, int_st, snd_st, cpu);
+    iwm_init(mem_st, IWM_BASE_ADDR, cpu, via_st);
+    z8530_init(mem_st, 0x0, via_st, int_st, cpu);
 
     /* Display */
     display->con = graphic_console_init(NULL, 0, &mac_display_ops, display);

@@ -8,6 +8,7 @@
 #include "mac_mouse.h"
 #include "z8530.h"
 #include "mac_int_control.h"
+#include "mac_memory.h"
 
 typedef enum {
     chn_a, chn_b,
@@ -165,7 +166,7 @@ static void z8530_mem_write(void *opaque, hwaddr addr,
     int newreg;
 
     val &= 0xff;
-    offset = addr;
+    offset = addr & 0x7;
 
     if (offset & 0x2) {
         s = &state->chn[chn_a];
@@ -248,7 +249,7 @@ static uint64_t z8530_mem_read(void *opaque, hwaddr addr,
     uint32_t offset;
     uint32_t ret = 0;
 
-    offset = addr - 0x1FFFF8;
+    offset = addr & 0x7;
 
     if (offset & 0x2) {
         s = &state->chn[chn_a];
@@ -329,7 +330,7 @@ static const MemoryRegionOps z8530_mem_ops = {
     .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
-void *z8530_init(hwaddr base, via_state *via, int_state *int_st, M68kCPU *cpu)
+void *z8530_init(memory_state *mem_st, hwaddr base, via_state *via, int_state *int_st, M68kCPU *cpu)
 {
     Z8530State *s;
     unsigned int i;
@@ -348,6 +349,6 @@ void *z8530_init(hwaddr base, via_state *via, int_state *int_st, M68kCPU *cpu)
     mouse_init(s, via);
 
     memory_region_init_io(&s->iomem, NULL, &z8530_mem_ops, s, "z8530", 0x400000);
-    memory_region_add_subregion(get_system_memory(), base, &s->iomem);
+    memory_region_add_subregion(mac_get_upper_memory(mem_st), base, &s->iomem);
     return 0;
 }

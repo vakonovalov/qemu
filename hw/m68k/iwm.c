@@ -5,6 +5,7 @@
 #include "hw/hw.h"
 #include "mac128k.h"
 #include "sy6522.h"
+#include "mac_memory.h"
 
 #define HIGHBIT 7
 #define HIGHBIT_MASK (1 << HIGHBIT)
@@ -157,7 +158,10 @@ static void iwm_writeb(void *opaque, hwaddr offset,
                               uint32_t value)
 {
     iwm_state *s = (iwm_state *)opaque;
-    offset = (offset - (s->base & ~TARGET_PAGE_MASK)) >> 9;
+
+    //Macintosh_Hardware_Memory_Map
+    //Lines A12, A11, A10, A9 select registers
+    offset = (offset & 0x1e00) >> 9;
     if (offset > 0xF) {
         hw_error("Bad IWM write offset 0x%x", (int)offset);
     }
@@ -183,7 +187,10 @@ static void iwm_writeb(void *opaque, hwaddr offset,
 static uint32_t iwm_readb(void *opaque, hwaddr offset)
 {
     iwm_state *s = (iwm_state *)opaque;
-    offset = (offset - (s->base & ~TARGET_PAGE_MASK)) >> 9;
+
+    //Macintosh_Hardware_Memory_Map
+    //Lines A12, A11, A10, A9 select registers
+    offset = (offset & 0x1e00) >> 9;
     if (offset >= IWM_REGS) {
         hw_error("Bad iwm read offset 0x%x", (int)offset);
     }
@@ -247,15 +254,15 @@ static void iwm_reset(void *opaque)
     s->regs[EXTERNAL][STEP]  = 1;
 }
 
-void iwm_init(MemoryRegion *sysmem, uint32_t base, M68kCPU *cpu, via_state *via)
+void iwm_init(memory_state *mem_st, uint32_t base, M68kCPU *cpu, via_state *via)
 {
     iwm_state *s;
     s = (iwm_state *)g_malloc0(sizeof(iwm_state));
 
     s->base = base;
     memory_region_init_io(&s->iomem, NULL, &iwm_ops, s,
-                          "iwm", 0x2000);
-    memory_region_add_subregion(sysmem, base & TARGET_PAGE_MASK, &s->iomem);
+                          "iwm", 0x100000);
+    memory_region_add_subregion(mac_get_upper_memory(mem_st), base & TARGET_PAGE_MASK, &s->iomem);
 
     s->cpu = cpu;
     s->via = via;

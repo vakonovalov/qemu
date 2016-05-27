@@ -18,8 +18,8 @@
 #include "mac_keyboard.h"
 #include "mac_int_control.h"
 #include "mac_sound_generator.h"
+#include "mac_memory.h"
 
-#define REGA_OVERLAY_MASK (1 << 4)
 /* In Macintosh Plus 1ms is 780 VIA clock cycles 
 #define F2_RATE 1282 */
 /* Page 22 Volume III (or page 1025) of Inside_Macintosh */
@@ -34,8 +34,7 @@ typedef struct timer_state {
 typedef struct via_state {
     M68kCPU *cpu;
     MemoryRegion iomem;
-    MemoryRegion rom;
-    MemoryRegion ram;
+    memory_state *mem_st;
     /* base address */
     target_ulong base;
     /* registers */
@@ -149,19 +148,8 @@ static void via_set_reg_vBufA(via_state *s, uint8_t val)
 
     /* Switch vOverlay bit */
     if ((old & REGA_OVERLAY_MASK) != (val & REGA_OVERLAY_MASK)) {
-        if (val & REGA_OVERLAY_MASK) {
-            /* map ROM and RAM */
-            memory_region_add_subregion_overlap(get_system_memory(),
-                                                0x0, &s->rom, 1);
-            memory_region_add_subregion_overlap(get_system_memory(),
-                                                0x600000, &s->ram, 1);
-            qemu_log("via: Map ROM at 0x0\n");
-        } else {
-            /* unmap ROM and RAM */
-            memory_region_del_subregion(get_system_memory(), &s->rom);
-            memory_region_del_subregion(get_system_memory(), &s->ram);
-            qemu_log("via: Unmap ROM from 0x0\n");
-        }
+        mac_change_overlay_memory(s->mem_st, val & REGA_OVERLAY_MASK);
+        qemu_log("via: Change overlay to %x\n", !!(val & REGA_OVERLAY_MASK));
         tlb_flush(CPU(s->cpu), 1);
     }
 
@@ -318,7 +306,10 @@ static void via_writeb(void *opaque, hwaddr offset,
                               uint32_t value)
 {
     via_state *s = (via_state *)opaque;
-    offset = (offset - (s->base & ~TARGET_PAGE_MASK)) >> 9;
+
+    //Macintosh_Hardware_Memory_Map
+    //Lines A12, A11, A10, A9 select registers
+    offset = (offset & 0x1e00) >> 9;
     if (offset >= VIA_REGS) {
         hw_error("Bad VIA write offset 0x%x", (int)offset);
     }
@@ -330,7 +321,10 @@ static uint32_t via_readb(void *opaque, hwaddr offset)
 {
     via_state *s = (via_state *)opaque;
     uint32_t ret = 0;
-    offset = (offset - (s->base & ~TARGET_PAGE_MASK)) >> 9;
+
+    //Macintosh_Hardware_Memory_Map
+    //Lines A12, A11, A10, A9 select registers
+    offset = (offset & 0x1e00) >> 9;
     if (offset >= VIA_REGS) {
         hw_error("Bad VIA read offset 0x%x", (int)offset);
     }
@@ -496,7 +490,7 @@ static timer_state *vbi_init(qemu_irq irq)
     return s;
 }
 
-via_state *sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
+via_state *sy6522_init(memory_state *mem_st,
                  uint32_t base, int_state *int_st, sound_generator_state *snd_st, M68kCPU *cpu)
 {
     via_state *s;
@@ -507,14 +501,11 @@ via_state *sy6522_init(MemoryRegion *rom, MemoryRegion *ram,
 
     s->base = base;
     s->cpu = cpu;
+    s->mem_st = mem_st;
     memory_region_init_io(&s->iomem, NULL, &via_ops, s,
-                          "sy6522 via", 0x2000);
-    memory_region_add_subregion(get_system_memory(),
+                          "sy6522 via", 0x80000);
+    memory_region_add_subregion(mac_get_upper_memory(mem_st),
                                 base & TARGET_PAGE_MASK, &s->iomem);
-    /* TODO: Magic! */
-    memory_region_init_alias(&s->rom, NULL, "ROM overlay", rom, 0x0, 0x10000);
-    memory_region_set_readonly(&s->rom, true);
-    memory_region_init_alias(&s->ram, NULL, "RAM overlay", ram, 0x0, 0x20000);
 
     s->rtc = rtc_init(pic[0]);
     s->vbi = vbi_init(pic[1]);

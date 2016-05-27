@@ -5,6 +5,7 @@
 #include "hw/m68k/mac128k.h"
 #include "sysemu/block-backend.h"
 #include "hw/qdev.h"
+#include "hw/m68k/mac_memory.h"
 
 #define TYPE_MAC_FD "mac_fd"
 
